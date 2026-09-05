@@ -1,17 +1,28 @@
 """
-Tamper-evident forensic chain-of-custody.
+Tamper-evident forensic chain-of-custody — the "Blockchain & Cybersecurity"
+core, made genuinely useful rather than decorative.
 
-The evidence ledger records security alerts as evidence bundles and protects
-them using:
+The data diode already guarantees the enclave cannot be used to reach back into
+production; this module guarantees that what the enclave records cannot be
+silently altered afterwards.
 
-- SHA-256 hashes
-- Merkle trees
-- Merkle inclusion proofs
-- Hash-chained blocks
-- HMAC signatures
-- Permissioned-ledger anchoring
+Every alert becomes an evidence bundle containing:
+- alert
+- flow record
+- Merkle root over raw packet hashes
+- feature vector
+- exact model version
 
-Only the Python standard library is used.
+Bundles are batched into blocks.
+
+Each block:
+- contains a Merkle root of bundle digests
+- links cryptographically to the previous block
+- is signed by the sensor
+- can be anchored to a permissioned ledger
+- can be persisted to JSON and reloaded with integrity verification
+
+Uses only the Python standard library.
 """
 
 from __future__ import annotations
@@ -19,8 +30,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
+import tempfile
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 
@@ -29,7 +43,7 @@ from typing import List, Optional, Tuple
 # --------------------------------------------------------------------------- #
 
 def _h(data: bytes) -> str:
-    """Return a SHA-256 hexadecimal digest."""
+    """Return SHA-256 hexadecimal digest."""
     return hashlib.sha256(data).hexdigest()
 
 
@@ -37,8 +51,7 @@ def canonical(obj) -> bytes:
     """
     Deterministic serialization.
 
-    Sorting keys and removing unnecessary whitespace ensures that the same
-    logical object produces the same bytes and therefore the same hash.
+    Ensures hashes are reproducible across different hosts and runs.
     """
     return json.dumps(
         obj,
@@ -56,9 +69,9 @@ class MerkleTree:
     Merkle tree over hexadecimal SHA-256 hashes.
 
     Supports:
-    - root generation
-    - inclusion proof generation
-    - inclusion proof verification
+    - Merkle root generation
+    - Inclusion proof generation
+    - Inclusion proof verification
     """
 
     def __init__(self, leaves: List[str]):
@@ -72,25 +85,25 @@ class MerkleTree:
         level = self.leaves
 
         while len(level) > 1:
-
             nxt = []
 
             for i in range(0, len(level), 2):
+                a = level[i]
 
-                left = level[i]
-
+                # Duplicate final node if there is an odd number of nodes.
                 if i + 1 < len(level):
-                    right = level[i + 1]
+                    b = level[i + 1]
                 else:
-                    # Duplicate the final node when the level has odd size.
-                    right = left
+                    b = a
 
-                parent = _h(
-                    bytes.fromhex(left) +
-                    bytes.fromhex(right)
+                combined = (
+                    bytes.fromhex(a)
+                    + bytes.fromhex(b)
                 )
 
-                nxt.append(parent)
+                nxt.append(
+                    _h(combined)
+                )
 
             self.levels.append(nxt)
             level = nxt
@@ -100,25 +113,26 @@ class MerkleTree:
         """Return the Merkle root."""
         return self.levels[-1][0]
 
-    def proof(self, index: int) -> List[Tuple[str, str]]:
+    def proof(
+        self,
+        index: int
+    ) -> List[Tuple[str, str]]:
         """
-        Generate an inclusion proof.
+        Generate a Merkle inclusion proof.
 
-        Each tuple contains:
+        Returns a list of:
 
             (sibling_hash, side)
 
-        side:
+        where side is:
             "L" -> sibling is on the left
             "R" -> sibling is on the right
         """
 
         if index < 0 or index >= len(self.leaves):
-            raise IndexError(
-                f"Invalid Merkle leaf index: {index}"
-            )
+            raise IndexError("Invalid bundle index")
 
-        proof: List[Tuple[str, str]] = []
+        proof = []
 
         for level in self.levels[:-1]:
 
@@ -126,11 +140,10 @@ class MerkleTree:
 
             if sibling_index < len(level):
 
-                side = (
-                    "R"
-                    if sibling_index > index
-                    else "L"
-                )
+                if sibling_index > index:
+                    side = "R"
+                else:
+                    side = "L"
 
                 proof.append(
                     (
@@ -140,7 +153,7 @@ class MerkleTree:
                 )
 
             else:
-                # Odd node was duplicated while building the tree.
+                # Odd node was duplicated during tree construction.
                 proof.append(
                     (
                         level[index],
@@ -161,42 +174,31 @@ class MerkleTree:
         """
         Verify a Merkle inclusion proof.
 
-        Returns True only when the supplied leaf and proof reconstruct
-        the supplied Merkle root.
+        Returns True only if the leaf and proof reconstruct the supplied root.
         """
 
         current_hash = leaf
 
-        try:
+        for sibling_hash, side in proof:
 
-            for sibling_hash, side in proof:
+            if side == "R":
 
-                if side == "R":
+                current_hash = _h(
+                    bytes.fromhex(current_hash)
+                    + bytes.fromhex(sibling_hash)
+                )
 
-                    current_hash = _h(
-                        bytes.fromhex(current_hash) +
-                        bytes.fromhex(sibling_hash)
-                    )
+            elif side == "L":
 
-                elif side == "L":
+                current_hash = _h(
+                    bytes.fromhex(sibling_hash)
+                    + bytes.fromhex(current_hash)
+                )
 
-                    current_hash = _h(
-                        bytes.fromhex(sibling_hash) +
-                        bytes.fromhex(current_hash)
-                    )
+            else:
+                return False
 
-                else:
-                    # Invalid proof direction.
-                    return False
-
-        except (ValueError, TypeError):
-            # Handles malformed hashes or malformed proof data.
-            return False
-
-        return hmac.compare_digest(
-            current_hash,
-            root
-        )
+        return current_hash == root
 
 
 # --------------------------------------------------------------------------- #
@@ -206,10 +208,9 @@ class MerkleTree:
 @dataclass
 class EvidenceBundle:
     """
-    A forensic evidence record.
+    A complete forensic evidence record.
 
-    Each bundle contains the security alert, flow information, packet hashes,
-    extracted features, and the exact ML model version involved.
+    Each bundle represents evidence associated with a security alert.
     """
 
     alert: dict
@@ -221,20 +222,21 @@ class EvidenceBundle:
 
     def digest(self) -> str:
         """
-        Produce a deterministic SHA-256 digest for this evidence bundle.
+        Produce a tamper-evident digest for the evidence bundle.
         """
 
-        packet_tree = MerkleTree(
+        packet_root = MerkleTree(
             self.packet_hashes or [_h(b"-")]
-        )
+        ).root
 
         payload = {
             "alert": self.alert,
             "flow": self.flow_record,
-            "pkt_root": packet_tree.root,
+            "pkt_root": packet_root,
             "features": self.feature_vector,
             "model": (
-                f"{self.model_id}@"
+                f"{self.model_id}"
+                f"@"
                 f"{self.model_version}"
             ),
         }
@@ -251,9 +253,7 @@ class EvidenceBundle:
 @dataclass
 class Block:
     """
-    A batch of evidence bundles.
-
-    Blocks are chained together using the previous block's header hash.
+    A batch of evidence bundles stored as one cryptographically linked block.
     """
 
     index: int
@@ -262,13 +262,16 @@ class Block:
     merkle_root: str
     bundle_digests: List[str]
     sensor_id: str
+
     signature: str = ""
     anchored: bool = False
     anchor_ref: Optional[str] = None
 
     def header_hash(self) -> str:
         """
-        Return the deterministic hash of this block's header.
+        Hash the immutable block header.
+
+        The header intentionally excludes mutable anchor metadata.
         """
 
         header = {
@@ -290,17 +293,10 @@ class Block:
 
 class EvidenceLedger:
     """
-    Append-only tamper-evident evidence ledger.
-
-    Features:
-    - evidence bundle hashing
-    - Merkle roots
-    - Merkle inclusion proofs
-    - hash-chained blocks
-    - HMAC signatures
-    - block anchoring
-    - chain verification
+    Append-only, hash-chained, signed ledger of evidence bundles.
     """
+
+    STORAGE_VERSION = 1
 
     def __init__(
         self,
@@ -308,12 +304,6 @@ class EvidenceLedger:
         signing_key: bytes,
         batch_size: int = 8
     ):
-
-        if batch_size <= 0:
-            raise ValueError(
-                "batch_size must be greater than zero"
-            )
-
         self.sensor_id = sensor_id
         self._key = signing_key
         self.batch_size = batch_size
@@ -324,11 +314,11 @@ class EvidenceLedger:
         self._genesis()
 
     # ----------------------------------------------------------------------- #
-    # Genesis
+    # Genesis block
     # ----------------------------------------------------------------------- #
 
     def _genesis(self) -> None:
-        """Create the genesis block."""
+        """Create the initial genesis block."""
 
         genesis_root = MerkleTree(
             [_h(b"genesis")]
@@ -340,16 +330,12 @@ class EvidenceLedger:
             prev_hash="0" * 64,
             merkle_root=genesis_root,
             bundle_digests=[],
-            sensor_id=self.sensor_id,
+            sensor_id=self.sensor_id
         )
 
-        block.signature = self._sign(
-            block
-        )
+        block.signature = self._sign(block)
 
-        self.blocks.append(
-            block
-        )
+        self.blocks.append(block)
 
     # ----------------------------------------------------------------------- #
     # Signing
@@ -359,7 +345,9 @@ class EvidenceLedger:
         self,
         block: Block
     ) -> str:
-        """Create an HMAC signature for a block header."""
+        """
+        Create an HMAC-SHA256 signature for a block header.
+        """
 
         return hmac.new(
             self._key,
@@ -368,7 +356,7 @@ class EvidenceLedger:
         ).hexdigest()
 
     # ----------------------------------------------------------------------- #
-    # Adding and sealing evidence
+    # Adding evidence
     # ----------------------------------------------------------------------- #
 
     def add(
@@ -382,23 +370,24 @@ class EvidenceLedger:
         Automatically seals a block when batch_size is reached.
         """
 
-        self._pending.append(
-            bundle
-        )
+        self._pending.append(bundle)
 
         if len(self._pending) >= self.batch_size:
-            return self.seal(
-                ts
-            )
+            return self.seal(ts)
 
         return None
+
+    # ----------------------------------------------------------------------- #
+    # Sealing blocks
+    # ----------------------------------------------------------------------- #
 
     def seal(
         self,
         ts: float
     ) -> Optional[Block]:
         """
-        Convert pending evidence bundles into a signed block.
+        Close the current evidence batch into a signed,
+        cryptographically linked block.
         """
 
         if not self._pending:
@@ -421,141 +410,84 @@ class EvidenceLedger:
             prev_hash=previous_block.header_hash(),
             merkle_root=merkle_root,
             bundle_digests=digests,
-            sensor_id=self.sensor_id,
+            sensor_id=self.sensor_id
         )
 
-        block.signature = self._sign(
-            block
-        )
+        block.signature = self._sign(block)
 
-        self.blocks.append(
-            block
-        )
+        self.blocks.append(block)
 
         self._pending = []
 
         return block
 
     # ----------------------------------------------------------------------- #
-    # NEW FEATURE: Evidence bundle inclusion proofs
+    # Merkle inclusion proofs
     # ----------------------------------------------------------------------- #
 
-    def bundle_proof(
+    def get_bundle_proof(
         self,
         block_index: int,
         bundle_index: int
-    ) -> dict:
+    ) -> List[Tuple[str, str]]:
         """
-        Generate an inclusion proof for an evidence bundle.
-
-        The returned proof can later be used to prove that a particular
-        evidence bundle was included in a specific block without exposing
-        all other bundles.
+        Generate an inclusion proof for a bundle digest
+        stored inside a specific block.
         """
 
-        if block_index < 0 or block_index >= len(self.blocks):
+        if (
+            block_index < 0
+            or block_index >= len(self.blocks)
+        ):
+            raise IndexError("Invalid block index")
+
+        block = self.blocks[block_index]
+
+        if block_index == 0:
             raise IndexError(
-                f"Invalid block index: {block_index}"
-            )
-
-        block = self.blocks[
-            block_index
-        ]
-
-        if not block.bundle_digests:
-            raise ValueError(
-                "Block does not contain evidence bundles"
+                "Genesis block contains no evidence bundles"
             )
 
         if (
             bundle_index < 0
             or bundle_index >= len(block.bundle_digests)
         ):
-            raise IndexError(
-                f"Invalid bundle index: {bundle_index}"
-            )
+            raise IndexError("Invalid bundle index")
 
         tree = MerkleTree(
             block.bundle_digests
         )
 
-        return {
-            "block_index": block.index,
-            "bundle_index": bundle_index,
-            "bundle_digest": (
-                block.bundle_digests[
-                    bundle_index
-                ]
-            ),
-            "proof": tree.proof(
-                bundle_index
-            ),
-            "merkle_root": tree.root,
-        }
+        return tree.proof(
+            bundle_index
+        )
 
     def verify_bundle_proof(
         self,
-        proof_record: dict
+        block_index: int,
+        bundle_digest: str,
+        proof: List[Tuple[str, str]]
     ) -> bool:
         """
-        Verify an evidence bundle inclusion proof.
-
-        The proof must:
-        - reference a valid block
-        - match that block's Merkle root
-        - reconstruct the Merkle root successfully
+        Verify that a bundle digest belongs to a specific block.
         """
 
-        try:
-
-            block_index = proof_record[
-                "block_index"
-            ]
-
-            bundle_digest = proof_record[
-                "bundle_digest"
-            ]
-
-            proof = proof_record[
-                "proof"
-            ]
-
-            claimed_root = proof_record[
-                "merkle_root"
-            ]
-
-            if (
-                block_index < 0
-                or block_index >= len(self.blocks)
-            ):
-                return False
-
-            block = self.blocks[
-                block_index
-            ]
-
-            # The proof must correspond to the actual block root.
-            if not hmac.compare_digest(
-                claimed_root,
-                block.merkle_root
-            ):
-                return False
-
-            return MerkleTree.verify_proof(
-                bundle_digest,
-                proof,
-                block.merkle_root
-            )
-
-        except (
-            KeyError,
-            TypeError,
-            ValueError
+        if (
+            block_index < 0
+            or block_index >= len(self.blocks)
         ):
-            return False
+            raise IndexError("Invalid block index")
+
+        block = self.blocks[block_index]
+
+        return MerkleTree.verify_proof(
+            bundle_digest,
+            proof,
+            block.merkle_root
+        )
 
     # ----------------------------------------------------------------------- #
-    # Anchoring
+    # Block anchoring
     # ----------------------------------------------------------------------- #
 
     def anchor(
@@ -563,20 +495,19 @@ class EvidenceLedger:
         block_index: int
     ) -> str:
         """
-        Commit a block header to the stubbed permissioned ledger.
+        Commit a block header to a stubbed permissioned ledger.
+
+        In production this can be replaced with a real permissioned
+        blockchain or external immutable ledger implementation.
         """
 
         if (
             block_index < 0
             or block_index >= len(self.blocks)
         ):
-            raise IndexError(
-                f"Invalid block index: {block_index}"
-            )
+            raise IndexError("Invalid block index")
 
-        block = self.blocks[
-            block_index
-        ]
+        block = self.blocks[block_index]
 
         reference = (
             "anchor://permissioned/"
@@ -589,96 +520,389 @@ class EvidenceLedger:
         return reference
 
     # ----------------------------------------------------------------------- #
-    # Verification
+    # Individual block verification
+    # ----------------------------------------------------------------------- #
+
+    def verify_block(
+        self,
+        block_index: int
+    ) -> bool:
+        """
+        Verify a single block.
+
+        Checks:
+        - valid block index
+        - correct Merkle root
+        - correct previous-block linkage
+        - valid sensor signature
+
+        Returns True only if all checks pass.
+        """
+
+        # An invalid block cannot be valid. Return False instead of raising
+        # so callers can safely treat verification as a boolean operation.
+        if (
+            block_index < 0
+            or block_index >= len(self.blocks)
+        ):
+            return False
+
+        block = self.blocks[block_index]
+
+        # ------------------------------------------------------------------- #
+        # Verify Merkle root
+        # ------------------------------------------------------------------- #
+
+        if block_index == 0:
+
+            expected_root = MerkleTree(
+                [_h(b"genesis")]
+            ).root
+
+        else:
+
+            expected_root = MerkleTree(
+                block.bundle_digests
+            ).root
+
+        if block.merkle_root != expected_root:
+            return False
+
+        # ------------------------------------------------------------------- #
+        # Verify previous hash linkage
+        # ------------------------------------------------------------------- #
+
+        if block_index == 0:
+
+            if block.prev_hash != "0" * 64:
+                return False
+
+        else:
+
+            previous_block = self.blocks[
+                block_index - 1
+            ]
+
+            if (
+                block.prev_hash
+                != previous_block.header_hash()
+            ):
+                return False
+
+        # ------------------------------------------------------------------- #
+        # Verify sensor signature
+        # ------------------------------------------------------------------- #
+
+        expected_signature = self._sign(
+            block
+        )
+
+        if not hmac.compare_digest(
+            block.signature,
+            expected_signature
+        ):
+            return False
+
+        return True
+
+    # ----------------------------------------------------------------------- #
+    # Complete chain verification
     # ----------------------------------------------------------------------- #
 
     def verify_chain(
         self
     ) -> Tuple[bool, Optional[int]]:
         """
-        Verify the entire blockchain-style evidence chain.
+        Verify every block in the evidence chain.
 
         Returns:
-
             (True, None)
-
-        when the chain is intact.
-
-        Returns:
+                if the complete chain is intact.
 
             (False, block_index)
-
-        when tampering is detected.
+                if tampering is detected.
         """
 
-        # Verify genesis signature.
-        genesis = self.blocks[0]
-
-        if not hmac.compare_digest(
-            genesis.signature,
-            self._sign(genesis)
-        ):
-            return False, 0
-
-        for i in range(
-            1,
+        for index in range(
             len(self.blocks)
         ):
 
-            current = self.blocks[i]
-            previous = self.blocks[i - 1]
-
-            # Previous hash chain.
-            if not hmac.compare_digest(
-                current.prev_hash,
-                previous.header_hash()
+            if not self.verify_block(
+                index
             ):
-                return False, i
-
-            # Recalculate Merkle root.
-            if current.bundle_digests:
-
-                calculated_root = MerkleTree(
-                    current.bundle_digests
-                ).root
-
-                if not hmac.compare_digest(
-                    current.merkle_root,
-                    calculated_root
-                ):
-                    return False, i
-
-            # Verify HMAC signature.
-            if not hmac.compare_digest(
-                current.signature,
-                self._sign(current)
-            ):
-                return False, i
+                return False, index
 
         return True, None
+
+    # ----------------------------------------------------------------------- #
+    # Persistent storage
+    # ----------------------------------------------------------------------- #
+
+    def to_dict(self) -> dict:
+        """
+        Convert the complete ledger state into a JSON-serializable dictionary.
+
+        The signing key is intentionally NOT stored.
+        """
+
+        return {
+            "storage_version": self.STORAGE_VERSION,
+            "sensor_id": self.sensor_id,
+            "batch_size": self.batch_size,
+
+            "blocks": [
+                asdict(block)
+                for block in self.blocks
+            ],
+
+            "pending": [
+                asdict(bundle)
+                for bundle in self._pending
+            ],
+        }
+
+    def save(
+        self,
+        path: str | Path
+    ) -> Path:
+        """
+        Persist the ledger using an atomic write strategy.
+
+        The ledger is written to a temporary file first and then atomically
+        replaced. This helps avoid partially written ledger files.
+
+        The signing key is never written to disk.
+        """
+
+        destination = Path(path)
+
+        destination.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        fd, temp_path = tempfile.mkstemp(
+            prefix=destination.name + ".",
+            suffix=".tmp",
+            dir=str(destination.parent)
+        )
+
+        try:
+
+            with os.fdopen(
+                fd,
+                "w",
+                encoding="utf-8"
+            ) as file:
+
+                json.dump(
+                    self.to_dict(),
+                    file,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    indent=2
+                )
+
+                file.flush()
+
+                os.fsync(
+                    file.fileno()
+                )
+
+            os.replace(
+                temp_path,
+                destination
+            )
+
+        except Exception:
+
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+            raise
+
+        return destination
+
+    @classmethod
+    def load(
+        cls,
+        path: str | Path,
+        signing_key: bytes
+    ) -> "EvidenceLedger":
+        """
+        Load a persisted ledger and immediately verify its integrity.
+
+        The caller supplies the signing key because secret signing material is
+        intentionally never stored in the persisted ledger.
+
+        Raises:
+            ValueError:
+                If the persisted data is invalid or the ledger fails
+                cryptographic verification.
+        """
+
+        source = Path(path)
+
+        with source.open(
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            data = json.load(
+                file
+            )
+
+        if not isinstance(
+            data,
+            dict
+        ):
+            raise ValueError(
+                "Persisted ledger format is invalid"
+            )
+
+        if (
+            data.get("storage_version")
+            != cls.STORAGE_VERSION
+        ):
+            raise ValueError(
+                "Unsupported ledger storage version"
+            )
+
+        sensor_id = data.get(
+            "sensor_id"
+        )
+
+        batch_size = data.get(
+            "batch_size"
+        )
+
+        blocks_data = data.get(
+            "blocks"
+        )
+
+        pending_data = data.get(
+            "pending",
+            []
+        )
+
+        if (
+            not isinstance(
+                sensor_id,
+                str
+            )
+            or not sensor_id
+        ):
+            raise ValueError(
+                "Persisted ledger has an invalid sensor_id"
+            )
+
+        if (
+            not isinstance(
+                batch_size,
+                int
+            )
+            or batch_size <= 0
+        ):
+            raise ValueError(
+                "Persisted ledger has an invalid batch_size"
+            )
+
+        if not isinstance(
+            blocks_data,
+            list
+        ):
+            raise ValueError(
+                "Persisted blocks are invalid"
+            )
+
+        if not isinstance(
+            pending_data,
+            list
+        ):
+            raise ValueError(
+                "Persisted pending evidence is invalid"
+            )
+
+        ledger = cls(
+            sensor_id=sensor_id,
+            signing_key=signing_key,
+            batch_size=batch_size
+        )
+
+        try:
+
+            ledger.blocks = [
+                Block(**block)
+                for block in blocks_data
+            ]
+
+            ledger._pending = [
+                EvidenceBundle(**bundle)
+                for bundle in pending_data
+            ]
+
+        except (
+            TypeError,
+            KeyError
+        ) as exc:
+
+            raise ValueError(
+                "Persisted ledger contains invalid "
+                "block or evidence data"
+            ) from exc
+
+        if not ledger.blocks:
+            raise ValueError(
+                "Persisted ledger contains no blocks"
+            )
+
+        valid, broken_index = (
+            ledger.verify_chain()
+        )
+
+        if not valid:
+
+            raise ValueError(
+                "Persisted evidence ledger failed verification "
+                f"at block {broken_index}"
+            )
+
+        return ledger
 
     # ----------------------------------------------------------------------- #
     # Summary
     # ----------------------------------------------------------------------- #
 
     def summary(self) -> dict:
-        """Return a compact ledger status summary."""
+        """
+        Return a concise summary of ledger state and integrity.
+        """
 
-        intact, broken_index = (
+        chain_ok, broken_index = (
             self.verify_chain()
         )
 
         return {
             "sensor_id": self.sensor_id,
-            "blocks": len(self.blocks),
-            "pending": len(self._pending),
+
+            "blocks": len(
+                self.blocks
+            ),
+
+            "pending": len(
+                self._pending
+            ),
+
             "anchored_blocks": sum(
                 1
                 for block in self.blocks
                 if block.anchored
             ),
-            "chain_intact": intact,
+
+            "chain_intact": chain_ok,
+
             "first_broken_block": broken_index,
+
             "head": (
                 self.blocks[-1]
                 .header_hash()[:16]
