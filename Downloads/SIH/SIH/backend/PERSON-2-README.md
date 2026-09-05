@@ -1,4 +1,4 @@
-# CYCLOPS Person 2 Backend Contribution
+# Backend Contribution
 
 ## Branch
 
@@ -8,7 +8,7 @@ person-2-backend
 
 ## Role
 
-I am Person 2, the backend owner for CYCLOPS.
+I am the backend owner for CYCLOPS.
 
 My responsibility is to expose the work of the HalfSight detection engine as a usable, testable service for a future frontend or SIEM consumer.
 
