@@ -1,0 +1,53 @@
+{
+  "dataset": "chrmor/DGA_domains_dataset (25 real families) + Alexa legit",
+  "families": 25,
+  "train_size": 150000,
+  "test_size": 40000,
+  "auc": 0.97,
+  "at_threshold_0.5": {
+    "accuracy": 0.898,
+    "precision": 0.8705,
+    "recall": 0.9351,
+    "f1": 0.9016,
+    "fpr": 0.1391
+  },
+  "calibrated_threshold": 0.9873,
+  "at_calibrated_1pct_fpr": {
+    "accuracy": 0.859,
+    "precision": 0.9865,
+    "recall": 0.7281,
+    "f1": 0.8378,
+    "fpr": 0.01
+  },
+  "per_family_recall": {
+    "conficker": 0.295,
+    "corebot": 0.936,
+    "cryptolocker": 0.93,
+    "dircrypt": 0.894,
+    "emotet": 0.971,
+    "fobber": 0.799,
+    "gozi": 0.655,
+    "kraken": 0.564,
+    "matsnu": 0.68,
+    "murofet": 0.983,
+    "necurs": 0.829,
+    "nymaim": 0.101,
+    "padcrypt": 0.983,
+    "pushdo": 0.489,
+    "pykspa": 0.811,
+    "qadars": 0.915,
+    "ramdo": 0.986,
+    "ramnit": 0.856,
+    "ranbyus": 0.974,
+    "rovnix": 0.949,
+    "simda": 0.389,
+    "suppobox": 0.221,
+    "symmi": 0.604,
+    "tinba": 0.907,
+    "vawtrak": 0.482
+  },
+  "heuristic_baseline": {
+    "recall": 0.5448,
+    "fpr": 0.1242
+  }
+}

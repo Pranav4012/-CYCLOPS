@@ -1,0 +1,3 @@
+numpy>=1.21
+# Optional (production): scapy / pyshark for real PCAP, river for online ML,
+# confluent-kafka for streaming ingest, cryptography for ed25519 signing.

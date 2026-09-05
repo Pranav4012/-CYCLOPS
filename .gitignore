@@ -1,21 +1,10 @@
-# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
-*.egg-info/
-
-# Node
-node_modules/
-dist/
-.vite/
-
-# Env / secrets
-.env
-.env.local
-
-# OS
+venv/
 .DS_Store
-
-# Captured/large data (keep only small samples committed)
-data/raw/
-*.pcap
+reference-impl/pcaps/
+# large downloaded datasets — regenerate with datasets/fetch_datasets.sh
+reference-impl/datasets/*.csv
+reference-impl/datasets/*.txt
+# committed: halfsight/dga_model.npz (trained model), eval/results/metrics.json (evidence)
