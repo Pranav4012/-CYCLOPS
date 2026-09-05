@@ -87,6 +87,24 @@ def main(train_per=3000, test_per=800):
     # scores on test
     scores = model.scores(test_dom)
     a = auc(scores, test_y)
+
+    # precision-recall curve + average precision (threshold-independent quality)
+    def pr_curve(sc, y, n=26):
+        lo, hi = float(sc.min()), float(sc.max())
+        pts = []
+        for i in range(n):
+            t = lo + (hi - lo) * i / (n - 1)
+            pred = sc >= t
+            tp = int((pred & (y == 1)).sum()); fp = int((pred & (y == 0)).sum())
+            fn = int((~pred & (y == 1)).sum())
+            p = tp / (tp + fp) if tp + fp else 1.0
+            r = tp / (tp + fn) if tp + fn else 0.0
+            pts.append((round(t, 4), round(p, 4), round(r, 4)))
+        ps = sorted(pts, key=lambda x: x[2]); ap = 0.0; pr = 0.0
+        for _, p, r in ps:
+            ap += p * (r - pr); pr = r
+        return pts, round(ap, 4)
+    pr_pts, avg_prec = pr_curve(scores, test_y)
     # calibrate threshold to ~1% FPR on legit test
     legit_scores = np.sort(scores[test_y == 0])
     thr = float(legit_scores[int(0.99 * len(legit_scores))]) if len(legit_scores) else 0.5
@@ -114,7 +132,8 @@ def main(train_per=3000, test_per=800):
     result = {
         "dataset": "chrmor/DGA_domains_dataset (25 real families) + Alexa legit",
         "families": len(families), "train_size": len(train_dom), "test_size": len(test_dom),
-        "auc": round(a, 4),
+        "auc": round(a, 4), "average_precision": avg_prec,
+        "pr_curve": [{"threshold": t, "precision": p, "recall": r} for t, p, r in pr_pts],
         "at_threshold_0.5": {k: round(v, 4) for k, v in m_default.items()},
         "calibrated_threshold": round(thr, 4),
         "at_calibrated_1pct_fpr": {k: round(v, 4) for k, v in m_cal.items()},
@@ -127,7 +146,7 @@ def main(train_per=3000, test_per=800):
     print("\n" + "=" * 66)
     print("  TRAINED DGA MODEL — real data (held-out test)")
     print("=" * 66)
-    print(f"  AUC                {a:.4f}")
+    print(f"  AUC                {a:.4f}   avg-precision {avg_prec:.4f}")
     print(f"  @0.5    acc {m_default['accuracy']:.3f}  prec {m_default['precision']:.3f}  "
           f"rec {m_default['recall']:.3f}  F1 {m_default['f1']:.3f}  FPR {m_default['fpr']:.3f}")
     print(f"  @cal    acc {m_cal['accuracy']:.3f}  prec {m_cal['precision']:.3f}  "

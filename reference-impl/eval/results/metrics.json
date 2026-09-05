@@ -2,8 +2,8 @@
   "meta": {
     "trials_per_class": 30,
     "benign_trials": 30,
-    "generated": "2026-09-05T20:00:22",
-    "duration_s": 2.8
+    "generated": "2026-09-06T00:35:33",
+    "duration_s": 3.4
   },
   "detection": {
     "per_class_recall": {
@@ -294,8 +294,8 @@
     "recall_at_0.5": 0.9351,
     "recall_at_1pct_fpr": 0.7281,
     "fpr_calibrated": 0.01,
-    "heuristic_recall": 0.5448,
-    "heuristic_fpr": 0.1242,
+    "heuristic_recall": 0.6483,
+    "heuristic_fpr": 0.0092,
     "best_families": {
       "ramdo": 0.986,
       "murofet": 0.983,
@@ -309,6 +309,23 @@
       "conficker": 0.295,
       "simda": 0.389,
       "vawtrak": 0.482
+    }
+  },
+  "degradation": {
+    "cleartext": {
+      "dga_visible": 1.0,
+      "recon": "ack-derivative"
+    },
+    "DoH": {
+      "dga_visible": 0.0,
+      "beacon_timing": 1.0,
+      "recon": "ack-derivative",
+      "note": "qnames encrypted \u2192 lexical DGA/tunnel blind; beacon timing survives"
+    },
+    "QUIC": {
+      "beacon_timing": 1.0,
+      "recon": "prior",
+      "note": "UDP/443, no ACK/TS \u2192 GHOSTFLOW/PULSE degrade to prior; beacon timing survives"
     }
   }
 }

@@ -51,6 +51,17 @@ RETURN_RATIO_PRIOR = {
 }
 
 
+def _unwrap32(vals: List[int]) -> List[int]:
+    """Undo 32-bit wraparound in a monotone-increasing counter (TCP TSval / seq)."""
+    out = [vals[0]]
+    off = 0
+    for i in range(1, len(vals)):
+        if vals[i] + off < out[-1] - 0x40000000:   # a big backwards jump == a wrap past 2^32
+            off += 1 << 32
+        out.append(vals[i] + off)
+    return out
+
+
 def _linfit(xs: List[float], ys: List[float]) -> Tuple[float, float, float]:
     """Least-squares slope, intercept, R^2 (pure python)."""
     n = len(xs)
@@ -118,10 +129,18 @@ class HalfFlowReconstructor:
         """Fit TSval against wall-clock; slope is the clock Hz, R^2 its coherence."""
         if len(flow.tsval_samples) < 4:
             return None, 0.0
-        ts = [t for t, _ in flow.tsval_samples]
-        vals = [v for _, v in flow.tsval_samples]
-        # unwrap not needed for short windows; assume monotone TSval
-        slope, _, r2 = _linfit(ts, [float(v) for v in vals])
+        samples = sorted(flow.tsval_samples)                    # order by capture time
+        # PAWS-style filter: keep only serially-advancing TSvals, dropping old or
+        # reordered segments (which would otherwise wreck the clock fit).
+        fts, fv = [samples[0][0]], [samples[0][1] & 0xFFFFFFFF]
+        for t, v in samples[1:]:
+            v &= 0xFFFFFFFF
+            if ((v - fv[-1]) & 0xFFFFFFFF) < 0x80000000:        # not an older TSval
+                fts.append(t); fv.append(v)
+        if len(fv) < 4:
+            return None, 0.0
+        unwrapped = _unwrap32(fv)                               # undo 32-bit TSval wrap
+        slope, _, r2 = _linfit(fts, [float(v) for v in unwrapped])
         hz = slope if slope > 0 else None
         return hz, max(0.0, r2)
 
@@ -158,10 +177,15 @@ class HalfFlowReconstructor:
         (we're watching the responder side, or UDP). Returns (bytes, method, rel_unc).
         """
         if flow.proto == "TCP" and flow.ack_first is not None and flow.ack_last is not None \
-                and flow.ack_samples >= 2 and flow.ack_last > flow.ack_first:
-            est = float(flow.ack_last - flow.ack_first)
-            # uncertainty shrinks with more ACK samples seen (we may miss the last ACK
-            # if the flow was cut, biasing us low — hence a small floor).
+                and flow.ack_samples >= 2:
+            # wrap-aware total: add 2^32 per counted 32-bit ACK wraparound.
+            est = float((flow.ack_last - flow.ack_first) + flow.ack_wraps * (1 << 32))
+            if est <= 0:
+                return None, "prior", 1.0
+            # delayed-ACK / Nagle coarsen the ACK cadence (~2*MSS steps) but not the
+            # cumulative total, so this stays an accurate lower bound; uncertainty
+            # shrinks with the number of ACK samples seen (and if the flow was cut
+            # before the final ACK, we bias low — hence the floor).
             rel_unc = max(0.02, 1.0 / (flow.ack_samples ** 0.5))
             return est, "ack-derivative", rel_unc
         return None, "prior", 1.0

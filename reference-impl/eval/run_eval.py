@@ -320,6 +320,45 @@ def eval_dga_realdata():
     }
 
 
+def eval_degradation(N=20):
+    """Graceful degradation under encrypted transport — an HONEST capability matrix.
+    DoH hides DNS qnames (lexical DGA/tunnel go blind, timing survives); QUIC removes
+    the TCP ACK/timestamp signals (GHOSTFLOW/PULSE degrade to the prior, timing survives)."""
+    from halfsight.halfflow import HalfFlowReconstructor
+    hf = HalfFlowReconstructor()
+
+    def rate(builder, threat):
+        hits = 0
+        for i in range(N):
+            ft = FlowTable()
+            for p in builder(i):
+                ft.ingest(p)
+            if any(a.threat == threat for a in Pipeline().run_window(ft.snapshot(), now=2000.0, window_s=30.0)):
+                hits += 1
+        return round(hits / N, 2)
+
+    def recon_of(pkts):
+        ft = FlowTable()
+        for p in pkts:
+            ft.ingest(p)
+        methods = [hf.reconstruct_reverse_bytes(f)[1] for f in ft.snapshot() if f.dst_port == 443]
+        return "ack-derivative" if "ack-derivative" in methods else "prior"
+
+    dga_clear = rate(lambda i: L.dga_lookups(0.0, f"10.0.9.{10+i}", 91000+i, n=16)[0], "dga_domain")
+    doh_dga = rate(lambda i: L.doh_beacon(0.0, "1.1.1.1", f"10.0.9.{10+i}", 92000+i, n=16)[0], "dga_domain")
+    doh_beacon = rate(lambda i: L.doh_beacon(0.0, "1.1.1.1", f"10.0.9.{10+i}", 93000+i, period=60, n=16)[0], "c2_beaconing")
+    quic_beacon = rate(lambda i: L.quic_beacon(0.0, "203.0.113.9", f"10.0.9.{10+i}", 94000+i, period=60, n=16)[0], "c2_beaconing")
+    return {
+        "cleartext": {"dga_visible": dga_clear, "recon": "ack-derivative"},
+        "DoH": {"dga_visible": doh_dga, "beacon_timing": doh_beacon,
+                "recon": recon_of(L.doh_beacon(0.0, "1.1.1.1", "10.0.9.5", 99001, n=16)[0]),
+                "note": "qnames encrypted → lexical DGA/tunnel blind; beacon timing survives"},
+        "QUIC": {"beacon_timing": quic_beacon,
+                 "recon": recon_of(L.quic_beacon(0.0, "203.0.113.9", "10.0.9.5", 99002, n=16)[0]),
+                 "note": "UDP/443, no ACK/TS → GHOSTFLOW/PULSE degrade to prior; beacon timing survives"},
+    }
+
+
 def bar(v, width=22):
     return "█" * int(round(v * width)) + "·" * (width - int(round(v * width)))
 
@@ -341,6 +380,7 @@ def main():
     spoof = eval_spoof_vs_crowd(30)
     tamper = eval_tamper(50)
     dga_real = eval_dga_realdata()
+    degr = eval_degradation()
 
     print("\n[1] DETECTION — per-class recall (one-directional input)")
     for c in CLASSES:
@@ -396,13 +436,19 @@ def main():
         print(f"    [offline] cryptolocker recall {dga_real['cryptolocker_recall']*100:.1f}%  "
               f"benign FPR {dga_real['benign_fpr']*100:.1f}%  — {dga_real['note']}")
 
+    print("\n[8] GRACEFUL DEGRADATION — encrypted transport (honest capability matrix)")
+    print(f"    cleartext DNS: DGA visible {degr['cleartext']['dga_visible']*100:.0f}%  · recon {degr['cleartext']['recon']}")
+    print(f"    DoH:  lexical DGA/tunnel {'BLIND' if degr['DoH']['dga_visible']==0 else str(degr['DoH']['dga_visible'])}  "
+          f"· beacon-timing survives {degr['DoH']['beacon_timing']*100:.0f}%  · recon {degr['DoH']['recon']}")
+    print(f"    QUIC: beacon-timing survives {degr['QUIC']['beacon_timing']*100:.0f}%  · GHOSTFLOW recon {degr['QUIC']['recon']} (degraded)")
+
     results = {
         "meta": {"trials_per_class": trials, "benign_trials": benign_N,
                  "generated": time.strftime('%Y-%m-%dT%H:%M:%S'),
                  "duration_s": round(time.time() - t_start, 1)},
         "detection": det, "reconstruction": rec, "conformal": conf,
         "jitter_robustness": jit, "spoof_vs_flashcrowd": spoof, "custody": tamper,
-        "dga_realdata": dga_real,
+        "dga_realdata": dga_real, "degradation": degr,
     }
     out_dir = os.path.join(os.path.dirname(__file__), "results")
     os.makedirs(out_dir, exist_ok=True)

@@ -82,8 +82,11 @@ class UniFlow:
 
     # cumulative-ACK progression — GHOSTFLOW reconstructs the UNSEEN peer's byte
     # volume from these: each ACK is a receipt for bytes the peer sent back.
+    # ack_wraps counts 32-bit sequence-number wraparounds so long/high-volume
+    # flows reconstruct correctly (RFC 1982 serial arithmetic).
     ack_first: Optional[int] = None
     ack_last: Optional[int] = None
+    ack_wraps: int = 0
     ack_samples: int = 0
 
     # application observations
@@ -136,12 +139,19 @@ class UniFlow:
                 self.tsval_samples.append((p.ts, p.tcp_tsval))
             if p.tcp_tsecr is not None and p.tcp_tsecr != 0:
                 self.tsecr_samples.append((p.ts, p.tcp_tsecr))
-            # track cumulative-ACK progression (monotone; guard against wrap/dupes)
+            # track cumulative-ACK progression with RFC 1982 serial arithmetic so a
+            # 32-bit wrap (crossing 2^32 on a long/high-volume flow) is counted, not
+            # mistaken for a huge backwards jump. Old/reordered ACKs are ignored.
             if p.tcp_ack is not None and (f & FLAG_ACK):
+                a = p.tcp_ack & 0xFFFFFFFF
                 if self.ack_first is None:
-                    self.ack_first = p.tcp_ack
-                if self.ack_last is None or p.tcp_ack >= self.ack_last:
-                    self.ack_last = p.tcp_ack
+                    self.ack_first = self.ack_last = a
+                else:
+                    ahead = ((a - self.ack_last) & 0xFFFFFFFF)
+                    if 0 < ahead < 0x80000000:          # `a` is serially after ack_last
+                        if a < self.ack_last:            # numeric drop but serial advance => wrapped
+                            self.ack_wraps += 1
+                        self.ack_last = a
                 self.ack_samples += 1
 
         if p.http_partial:

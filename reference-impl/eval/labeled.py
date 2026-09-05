@@ -178,6 +178,41 @@ def c2_beacon(t0: float, c2_ip: str, infected: str, seed: int, period: float = 6
 
 
 # --------------------------------------------------------------------------- #
+# Encrypted-transport variants — for the graceful-degradation evaluation.
+# --------------------------------------------------------------------------- #
+def doh_beacon(t0: float, resolver: str, infected: str, seed: int, period: float = 60.0,
+               jitter: float = 0.12, n: int = 15) -> Tuple[List[Packet], dict]:
+    """C2/DGA hidden inside DNS-over-HTTPS: periodic TCP/443 to a DoH resolver,
+    NO plaintext qnames. Lexical DGA/tunnel detection is blind; beacon TIMING
+    (SPECTER) survives, and TCP ACKs still allow GHOSTFLOW reconstruction."""
+    r = _rng(seed); pk = []
+    base = t0; ack = r.randint(1000, 9000)
+    for i in range(n):
+        t = base + (r.random() * 2 - 1) * period * jitter; sp = 47000 + i
+        for k in range(4):
+            ack += r.randint(400, 1400)
+            pk.append(Packet(t + k * 0.02, infected, resolver, sp, 443, "TCP", r.randint(200, 900),
+                             tcp_flags=FLAG_ACK | FLAG_PSH, tcp_ack=ack,
+                             tcp_tsval=400000 + int((t + k * 0.02) * 1000)))
+        base += period
+    return pk, {"threats": {"c2_beaconing"}, "target": resolver, "transport": "DoH"}
+
+
+def quic_beacon(t0: float, c2: str, infected: str, seed: int, period: float = 60.0,
+                jitter: float = 0.12, n: int = 15) -> Tuple[List[Packet], dict]:
+    """C2 over QUIC / HTTP-3: periodic UDP/443 flows, no TCP handshake / ACK /
+    timestamps. GHOSTFLOW & PULSE degrade to the prior; beacon TIMING survives."""
+    r = _rng(seed); pk = []
+    base = t0
+    for i in range(n):
+        t = base + (r.random() * 2 - 1) * period * jitter; sp = 48000 + i
+        for k in range(3):
+            pk.append(Packet(t + k * 0.02, infected, c2, sp, 443, "UDP", 640))
+        base += period
+    return pk, {"threats": {"c2_beaconing"}, "target": c2, "transport": "QUIC"}
+
+
+# --------------------------------------------------------------------------- #
 # Reconstruction ground truth — a client->server flow whose ACK numbers encode
 # a KNOWN reverse-byte volume; the harness withholds the truth and reconstructs.
 # --------------------------------------------------------------------------- #

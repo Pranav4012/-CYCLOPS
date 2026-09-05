@@ -1,0 +1,43 @@
+name: CYCLOPS CI
+
+# Anti-regression gate: runs the unit tests and a fast synthetic eval on every
+# push / PR. If a change drops detection F1, raises the false-alarm rate, or
+# regresses the DGA model AUC, the build fails. Uses the committed model + self-
+# generated pcaps — no dataset/capture downloads needed.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reference-impl
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --quiet numpy pytest
+
+      - name: Unit tests (pytest)
+        run: python -m pytest -q
+
+      - name: Eval smoke test
+        run: python -m eval.run_eval 6
+
+      - name: Regression gate (F1 / false-alarm / DGA AUC)
+        run: python -m eval.ci_gate
+
+      - name: Engine self-test (demo + real-pcap round-trip)
+        run: |
+          python demo.py > /dev/null
+          python -m eval.make_pcaps > /dev/null
+          python -m halfsight.ingest pcaps/mixed.pcap | grep -q "syn_flood"
+          python -m halfsight.ingest pcaps/mixed.pcap --stream | grep -q "WIRESEAL"
