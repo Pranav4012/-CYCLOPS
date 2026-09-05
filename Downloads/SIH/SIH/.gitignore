@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.venv/
+backend/*.db
+.DS_Store
+reference-impl/pcaps/
+# large downloaded datasets — regenerate with datasets/fetch_datasets.sh
+reference-impl/datasets/*.csv
+reference-impl/datasets/*.txt
+# committed: halfsight/dga_model.npz (trained model), eval/results/metrics.json (evidence)
