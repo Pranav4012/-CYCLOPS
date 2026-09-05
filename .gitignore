@@ -8,3 +8,6 @@ reference-impl/pcaps/
 reference-impl/datasets/*.csv
 reference-impl/datasets/*.txt
 # committed: halfsight/dga_model.npz (trained model), eval/results/metrics.json (evidence)
+
+# backend runtime db
+reference-impl/backend/*.db
