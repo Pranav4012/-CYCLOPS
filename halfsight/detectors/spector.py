@@ -6,6 +6,7 @@ from typing import Iterable
 
 BEACON_MIN_SAMPLES = 4          # need at least this many connections to judge regularity
 BEACON_CV_THRESHOLD = 0.15      # coefficient of variation below this = suspiciously regular
+BEACON_SCORE_THRESHOLD = 1.0 - (BEACON_CV_THRESHOLD / 0.6)
 BEACON_MIN_INTERVAL_SEC = 5.0   # ignore sub-5s bursts, that's not beaconing, that's a burst
 
 
@@ -54,7 +55,7 @@ def detect(flows_by_pair: dict[tuple[str, str], list[dict]]) -> list[dict]:
         timestamps = [f["timestamp"] for f in flows]
         score = interarrival_regularity_score(timestamps)
 
-        if score >= BEACON_CV_THRESHOLD:
+        if score >= BEACON_SCORE_THRESHOLD:
             alerts.append({
                 "timestamp": flows[-1]["timestamp"],
                 "flow_id": flows[-1]["flow_id"],

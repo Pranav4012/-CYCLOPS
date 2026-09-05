@@ -4,7 +4,8 @@ import math
 import re
 from collections import Counter
 
-from .. import dga_families, dga_model
+import dga_families
+import dga_model
 
 ENTROPY_THRESHOLD = 3.2          # bits/char above this looks randomly generated
 QUERY_LEN_THRESHOLD = 50         # chars — legit hostnames are rarely this long

@@ -31,6 +31,9 @@ def detect(flows_by_dest: dict[str, list[dict]], window_seconds: float = 1.0) ->
         into rates.
     Returns Alert dicts for destinations under apparent flood conditions.
     """
+    if window_seconds <= 0:
+        raise ValueError("window_seconds must be greater than zero")
+
     alerts = []
     for dst_ip, flows in flows_by_dest.items():
         if len(flows) < MIN_FLOWS_FOR_JUDGEMENT:
