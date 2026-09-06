@@ -462,14 +462,13 @@ class EvidenceLedger:
             bundle_index
         )
 
-    def verify_bundle_proof(
+    def bundle_proof(
         self,
         block_index: int,
-        bundle_digest: str,
-        proof: List[Tuple[str, str]]
-    ) -> bool:
+        bundle_index: int
+    ) -> dict:
         """
-        Verify that a bundle digest belongs to a specific block.
+        Return a Merkle proof record using the project’s canonical API.
         """
 
         if (
@@ -480,10 +479,97 @@ class EvidenceLedger:
 
         block = self.blocks[block_index]
 
+        if block_index == 0:
+            raise IndexError(
+                "Genesis block contains no evidence bundles"
+            )
+
+        if (
+            bundle_index < 0
+            or bundle_index >= len(block.bundle_digests)
+        ):
+            raise IndexError("Invalid bundle index")
+
+        proof = self.get_bundle_proof(
+            block_index,
+            bundle_index,
+        )
+
+        return {
+            "block_index": block_index,
+            "bundle_index": bundle_index,
+            "bundle_digest": block.bundle_digests[bundle_index],
+            "merkle_root": block.merkle_root,
+            "proof": proof,
+        }
+
+    def verify_bundle_proof(
+        self,
+        *args,
+        **kwargs,
+    ) -> bool:
+        """
+        Verify a bundle proof.
+
+        Accepts either:
+            - ledger.verify_bundle_proof(block_index, bundle_digest, proof)
+            - ledger.verify_bundle_proof(proof_record)
+        """
+
+        if len(args) == 1 and not kwargs:
+            record = args[0]
+
+            if not isinstance(record, dict):
+                return False
+
+            block_index = record.get("block_index")
+            bundle_digest = record.get("bundle_digest")
+            proof = record.get("proof")
+            merkle_root = record.get("merkle_root")
+
+            if (
+                block_index is None
+                or bundle_digest is None
+                or proof is None
+            ):
+                return False
+
+            if (
+                block_index < 0
+                or block_index >= len(self.blocks)
+            ):
+                return False
+
+            if merkle_root is None:
+                merkle_root = self.blocks[block_index].merkle_root
+
+            return MerkleTree.verify_proof(
+                bundle_digest,
+                proof,
+                merkle_root,
+            )
+
+        if len(args) == 3 and not kwargs:
+            block_index, bundle_digest, proof = args
+        elif "block_index" in kwargs:
+            block_index = kwargs["block_index"]
+            bundle_digest = kwargs["bundle_digest"]
+            proof = kwargs["proof"]
+        else:
+            return False
+
+        if (
+            block_index < 0
+            or block_index >= len(self.blocks)
+        ):
+            return False
+
+        block = self.blocks[block_index]
+
         return MerkleTree.verify_proof(
             bundle_digest,
             proof,
-            block.merkle_root
+            block.merkle_root,
         )
 
     # ----------------------------------------------------------------------- #
