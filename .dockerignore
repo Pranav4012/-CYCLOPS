@@ -1,0 +1,12 @@
+**/__pycache__/
+**/*.pyc
+**/*.db
+.git/
+.github/
+.venv/
+venv/
+reference-impl/pcaps/
+reference-impl/datasets/*.csv
+reference-impl/datasets/*.txt
+product/
+*.md

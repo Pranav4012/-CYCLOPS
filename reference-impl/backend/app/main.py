@@ -174,3 +174,13 @@ async def live(websocket: WebSocket):
         await websocket.close()
     finally:
         service.unsubscribe(receive_event)
+
+
+# --- Static frontend (served at / so the whole app is one container) -----------
+# Mounted LAST so it never shadows the /api/* routes above.
+from pathlib import Path  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_FRONTEND_DIR = Path(__file__).resolve().parents[3] / "frontend"
+if _FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")

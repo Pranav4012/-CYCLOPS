@@ -3,5 +3,4 @@ uvicorn>=0.30
 python-multipart>=0.0.9
 SQLAlchemy>=2.0
 psycopg[binary]>=3.2
-httpx2>=0.1
--r ../reference-impl/requirements.txt
+-r ../requirements.txt

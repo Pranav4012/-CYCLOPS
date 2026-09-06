@@ -1,0 +1,18 @@
+# One command to run CYCLOPS end-to-end:  docker compose up --build
+# Then open http://localhost:8000
+services:
+  cyclops:
+    build: .
+    image: cyclops:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # cap on uploaded capture size (bytes); default 1 GiB
+      - CYCLOPS_MAX_UPLOAD_BYTES=1073741824
+    volumes:
+      # persist the SQLite evidence/alert store across restarts
+      - cyclops-data:/app/reference-impl/backend
+    restart: unless-stopped
+
+volumes:
+  cyclops-data:
