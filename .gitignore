@@ -3,7 +3,11 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
-reference-impl/pcaps/
+# ignore all captures but keep the fetch script tracked (reproducible validate_real)
+reference-impl/pcaps/*
+!reference-impl/pcaps/real/
+reference-impl/pcaps/real/*
+!reference-impl/pcaps/real/fetch_real_captures.sh
 # large downloaded datasets — regenerate with datasets/fetch_datasets.sh
 reference-impl/datasets/*.csv
 reference-impl/datasets/*.txt
