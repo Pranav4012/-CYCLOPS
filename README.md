@@ -1,4 +1,4 @@
-# CYCLOPS Person 3 Detection
+# CYCLOPS - Detection
 
 Person 3 owns three threat detectors for the CYCLOPS SIH26145 pipeline:
 
