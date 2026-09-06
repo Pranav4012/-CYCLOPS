@@ -1,4 +1,4 @@
-const API = window.CYCLOPS_API || 'http://127.0.0.1:8000';
+const API = window.CYCLOPS_API || location.origin;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -520,7 +520,24 @@ function setView(view) {
   document.querySelectorAll('[data-panel],[data-view]').forEach((node) => node.classList.toggle('active', node.dataset.panel === view || node.dataset.view === view));
   if (view === 'dashboard') requestAnimationFrame(setupLiveCanvas);
 }
-function connectLive() { try { const socket = new WebSocket(API.replace(/^http/, 'ws') + '/api/live'); socket.onmessage = (message) => { const event = JSON.parse(message.data); if (event.event === 'JOB_COMPLETED' || event.event === 'ALERTS_UPDATED') refresh(); }; socket.onclose = () => setTimeout(connectLive, 4000); } catch { /* REST remains available if WebSocket is unavailable. */ } }
+let liveReconnectTimer = null;
+function scheduleLiveReconnect() {
+  if (liveReconnectTimer) return;
+  liveReconnectTimer = setTimeout(() => { liveReconnectTimer = null; connectLive(); }, 4000);
+}
+function connectLive() {
+  try {
+    const socket = new WebSocket(API.replace(/^http/, 'ws') + '/api/live');
+    socket.onmessage = (message) => {
+      let event; try { event = JSON.parse(message.data); } catch { return; }
+      if (event.event === 'JOB_COMPLETED' || event.event === 'ALERTS_UPDATED') refresh();
+    };
+    socket.onerror = () => socket.close();
+    socket.onclose = scheduleLiveReconnect;
+  } catch {
+    scheduleLiveReconnect(); // REST polling still covers us until the socket comes back
+  }
+}
 function setAutoRefresh(ms) { if (autoTimer) clearInterval(autoTimer); autoTimer = ms > 0 ? setInterval(refresh, ms) : null; }
 
 // ---- toolbar bindings ----

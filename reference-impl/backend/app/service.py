@@ -22,6 +22,9 @@ from halfsight.pipeline import FlowTable, Pipeline  # noqa: E402
 from .storage import Storage
 from .correlation import correlate
 
+DEMO_PCAP = ENGINE_ROOT / "pcaps" / "mixed.pcap"
+DEMO_REPLAY_INTERVAL_S = 45.0
+
 
 class CyclopsService:
     """Queue PCAP jobs and keep the latest analysis snapshot in memory."""
@@ -50,6 +53,31 @@ class CyclopsService:
         self._alerts = self._storage.load_records("alerts")
         self._flows = self._storage.load_records("flows")
         self._evidence = self._storage.load_records("evidence")
+
+        self._demo_autoplay = True
+        if DEMO_PCAP.exists():
+            if not self._alerts and not self._flows:
+                threading.Thread(target=self._seed_demo_data, daemon=True,
+                                 name="cyclops-demo-seed").start()
+            if os.getenv("CYCLOPS_DEMO_REPLAY", "").strip().lower() in {"1", "true", "yes"}:
+                threading.Thread(target=self._demo_replay_loop, daemon=True,
+                                 name="cyclops-demo-replay").start()
+
+    def _seed_demo_data(self) -> None:
+        try:
+            self.analyze_file(str(DEMO_PCAP), source=DEMO_PCAP.name)
+        except Exception:
+            pass
+
+    def _demo_replay_loop(self) -> None:
+        while self._demo_autoplay:
+            time.sleep(DEMO_REPLAY_INTERVAL_S)
+            if not self._demo_autoplay:
+                return
+            try:
+                self.analyze_file(str(DEMO_PCAP), source=DEMO_PCAP.name)
+            except Exception:
+                pass
 
     @staticmethod
     def _flow_record(flow: Any) -> dict[str, Any]:
@@ -89,6 +117,7 @@ class CyclopsService:
             self._subscribers.discard(subscriber)
 
     def submit_file(self, path: str, source: str) -> str:
+        self._demo_autoplay = False
         job_id = f"pcap_{uuid.uuid4().hex[:10]}"
         with self._lock:
             self._jobs[job_id] = {"job_id": job_id, "status": "queued",

@@ -15,4 +15,5 @@ EXPOSE 8000
 WORKDIR /app/reference-impl
 
 # Engine (halfsight) resolves from CWD; backend serves the frontend at /.
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so $PORT expands — hosts like Railway assign it at runtime.
+CMD uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
