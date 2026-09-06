@@ -1,0 +1,267 @@
+{
+  "present": 8,
+  "passed": 8,
+  "cases": [
+    {
+      "file": "pkt.TCP.synflood.spoofed.pcap",
+      "expected": [
+        "syn_flood"
+      ],
+      "detected": [
+        "syn_flood"
+      ],
+      "pass": true,
+      "packets": 37841,
+      "span_s": 23.68,
+      "source": "StopDDoS/packet-captures",
+      "note": "real spoofed SYN flood",
+      "top": {
+        "ts": 1619605845.783363,
+        "detector": "floods",
+        "threat": "syn_flood",
+        "severity": "critical",
+        "confidence": 0.8903,
+        "flow_key": "*->10.10.10.10",
+        "title": "Syn Flood against 10.10.10.10",
+        "evidence": {
+          "syn_rate_hz": 1597.8,
+          "unique_sources": 37623,
+          "src_ip_entropy": 1.0,
+          "half_open_ratio": 1.0,
+          "mean_liveness": 0.25,
+          "note": "low liveness + high src entropy => spoofed sources"
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "amp.TCP.reflection.SYNACK.pcap",
+      "expected": [
+        "reflection_amplification"
+      ],
+      "detected": [
+        "reflection_amplification"
+      ],
+      "pass": true,
+      "packets": 7843,
+      "span_s": 0.15,
+      "source": "StopDDoS/packet-captures",
+      "note": "real TCP SYN-ACK reflection",
+      "top": {
+        "ts": 1622865526.697945,
+        "detector": "floods",
+        "threat": "reflection_amplification",
+        "severity": "critical",
+        "confidence": 0.8981,
+        "flow_key": "*->10.10.10.10",
+        "title": "Reflection Amplification against 10.10.10.10",
+        "evidence": {
+          "amplifier": "TCP SYN-ACK",
+          "synack_rate_hz": 13302.0,
+          "reflector_sources": 6934,
+          "src_ip_entropy": 0.996,
+          "note": "reflected SYN-ACK backscatter from spoofed SYNs"
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "amp.UDP.isakmp.pcap",
+      "expected": [
+        "reflection_amplification"
+      ],
+      "detected": [
+        "reflection_amplification"
+      ],
+      "pass": true,
+      "packets": 3984,
+      "span_s": 0.41,
+      "source": "StopDDoS/packet-captures",
+      "note": "real IPsec/ISAKMP amplification",
+      "top": {
+        "ts": 1623699902.412157,
+        "detector": "floods",
+        "threat": "reflection_amplification",
+        "severity": "critical",
+        "confidence": 0.9,
+        "flow_key": "*->10.10.10.10",
+        "title": "Reflection Amplification against 10.10.10.10",
+        "evidence": {
+          "amplifier": "IPsec-NAT-T",
+          "byte_rate_bps": 1625472,
+          "reflector_sources": 2767,
+          "mean_response_size": 204.0
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "amp.UDP.DNSANY.pcap",
+      "expected": [
+        "reflection_amplification"
+      ],
+      "detected": [
+        "reflection_amplification"
+      ],
+      "pass": true,
+      "packets": 11833,
+      "span_s": 0.57,
+      "source": "StopDDoS/packet-captures",
+      "note": "real DNS ANY amplification",
+      "top": {
+        "ts": 1623536928.040555,
+        "detector": "floods",
+        "threat": "reflection_amplification",
+        "severity": "critical",
+        "confidence": 0.9,
+        "flow_key": "*->10.10.10.10",
+        "title": "Reflection Amplification against 10.10.10.10",
+        "evidence": {
+          "amplifier": "DNS",
+          "byte_rate_bps": 9994174,
+          "reflector_sources": 71,
+          "mean_response_size": 243.6
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "iodine-cname.pcap",
+      "expected": [
+        "dns_tunnelling"
+      ],
+      "detected": [
+        "dns_tunnelling"
+      ],
+      "pass": true,
+      "packets": 17449,
+      "span_s": 3607.18,
+      "source": "ggyggy666/DNS-Tunnel-Datasets",
+      "note": "real iodine DNS tunnel",
+      "top": {
+        "ts": 1693792215.667485,
+        "detector": "dns_tunnel",
+        "threat": "dns_tunnelling",
+        "severity": "high",
+        "confidence": 0.8072,
+        "flow_key": "*->ggy666.tk",
+        "title": "DNS tunnel over ggy666.tk: ~251053 B uplink encoded",
+        "evidence": {
+          "queries": 17445,
+          "mean_subdomain_len": 24.0,
+          "mean_subdomain_entropy": 3.29,
+          "unique_subdomain_ratio": 0.52,
+          "exotic_qtype_ratio": 1.0,
+          "query_rate_hz": 290.75,
+          "uplink_bytes_est": 251053
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "dnscat2-txt.pcap",
+      "expected": [
+        "dns_tunnelling"
+      ],
+      "detected": [
+        "dns_tunnelling"
+      ],
+      "pass": true,
+      "packets": 37950,
+      "span_s": 4789.86,
+      "source": "ggyggy666/DNS-Tunnel-Datasets",
+      "note": "real dnscat2 DNS tunnel (C2)",
+      "top": {
+        "ts": 1693738272.486253,
+        "detector": "dns_tunnel",
+        "threat": "dns_tunnelling",
+        "severity": "critical",
+        "confidence": 0.9361,
+        "flow_key": "*->ggy666.tk",
+        "title": "DNS tunnel over ggy666.tk: ~4070754 B uplink encoded",
+        "evidence": {
+          "queries": 37950,
+          "mean_subdomain_len": 178.8,
+          "mean_subdomain_entropy": 4.001,
+          "unique_subdomain_ratio": 0.5,
+          "exotic_qtype_ratio": 1.0,
+          "query_rate_hz": 632.5,
+          "uplink_bytes_est": 4070754
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "http_slowloris.pcap",
+      "expected": [
+        "slowloris"
+      ],
+      "detected": [
+        "slowloris"
+      ],
+      "pass": true,
+      "packets": 8000,
+      "span_s": 387.58,
+      "source": "abastin99/PCAP_files",
+      "note": "real Slowloris slow-HTTP",
+      "top": {
+        "ts": 1534267255.74205,
+        "detector": "floods",
+        "threat": "slowloris",
+        "severity": "critical",
+        "confidence": 0.9,
+        "flow_key": "*->119.162.193.187",
+        "title": "Slowloris against 119.162.193.187",
+        "evidence": {
+          "concurrent_slow_conns": 500,
+          "mean_duration_s": 387.3,
+          "mean_byte_rate_bps": 0.7,
+          "partial_http_flows": 500
+        },
+        "contributions": {}
+      }
+    },
+    {
+      "file": "cobaltstrike-hancitor.pcap",
+      "expected": [
+        "c2_beaconing",
+        "dga_domain"
+      ],
+      "detected": [
+        "c2_beaconing",
+        "dga_domain",
+        "slowloris"
+      ],
+      "pass": true,
+      "packets": 14940,
+      "span_s": 1160.74,
+      "source": "malware-traffic-analysis.net",
+      "note": "real Cobalt Strike C2 beacon + DGA",
+      "top": {
+        "ts": 1620944097.979298,
+        "detector": "dga",
+        "threat": "dga_domain",
+        "severity": "critical",
+        "confidence": 1.0,
+        "flow_key": "10.0.0.101:51077->10.0.0.2:53/UDP",
+        "title": "DGA domain observed: jbqpsxvqbjzy.localdomain (arithmetic/hash)",
+        "evidence": {
+          "label": "jbqpsxvqbjzy",
+          "length": 12,
+          "entropy": 3.085,
+          "digit_ratio": 0.0,
+          "vowel_ratio": 0.0,
+          "max_cons_run": 12,
+          "englishness": 0.0,
+          "dict_word_hits": 0
+        },
+        "contributions": {
+          "non_englishness": 0.535,
+          "cons_run": 0.394,
+          "low_vowel": 0.042,
+          "length": 0.028
+        }
+      }
+    }
+  ]
+}

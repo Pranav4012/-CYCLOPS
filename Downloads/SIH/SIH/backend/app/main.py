@@ -5,7 +5,7 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -176,7 +176,11 @@ async def live(websocket: WebSocket):
             elif finished.lower() in {"ping", "snapshot"}:
                 await websocket.send_json({"type": "health", "event": "HEALTH",
                                            "data": service.status()})
-    except Exception:
-        await websocket.close()
+    except WebSocketDisconnect:
+        # Normal browser refresh/reconnect; the client already closed the socket.
+        pass
+    except RuntimeError:
+        # Avoid emitting a second close frame after a transport-level disconnect.
+        pass
     finally:
         service.unsubscribe(receive_event)
