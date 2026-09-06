@@ -10,14 +10,124 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar"><a class="brand" href="#dashboard"><span class="eye">◉</span><span><b>CYCLOPS</b><small>PASSIVE NDR / OPERATIONS CONSOLE</small></span></a><div class="top-actions"><span id="connection" class="status offline"><i></i> API OFFLINE</span><button id="refresh" class="icon" title="Refresh data" aria-label="Refresh data">↻</button></div></header>
+  <header class="topbar"><a class="brand" href="#dashboard"><span class="eye">◉</span><span><b>CYCLOPS</b><small>PASSIVE NDR / OPERATIONS CONSOLE</small></span></a><div class="top-actions"><span id="connection" class="status offline"><i></i> API OFFLINE</span><label class="auto-refresh">AUTO<select id="auto-interval"><option value="0">OFF</option><option value="5000">5s</option><option value="15000" selected>15s</option><option value="30000">30s</option><option value="60000">60s</option></select></label><button id="refresh" class="icon" title="Refresh data" aria-label="Refresh data">↻</button></div></header>
   <main class="shell">
     <section class="banner"><div><small>VISIBILITY MODEL</small><b>ONE-WAY OBSERVATION</b></div><span class="arrow"></span><div class="banner-copy"><b>RETURN PATH UNAVAILABLE</b><span>Inference is marked, never hidden.</span></div><div class="tap"><b id="tap-health">--</b><span>TAP HEALTH</span></div></section>
-    <nav class="tabs" aria-label="Console views"><a href="#dashboard" data-view="dashboard" class="active">Overview</a><a href="#incidents" data-view="incidents">Incidents <b id="incident-count">0</b></a><a href="#alerts" data-view="alerts">Alerts <b id="alert-count">0</b></a><a href="#evidence" data-view="evidence">Evidence</a></nav>
-    <section class="view active" data-panel="dashboard"><div class="heading"><div><small>OPERATIONS / LIVE</small><h1>Detection overview</h1></div><label class="upload"><input id="pcap" type="file" accept=".pcap,.pcapng"> INGEST PCAP</label></div><div class="metrics"><article><small>PACKETS PROCESSED</small><strong id="packets">0</strong><em id="pps">-- packets/sec</em></article><article><small>OBSERVED FLOWS</small><strong id="flows">0</strong><em id="fps">-- flows/sec</em></article><article><small>OPEN ALERTS</small><strong id="alerts">0</strong><em class="red">DETECTION OUTPUT</em></article><article><small>CORRELATED INCIDENTS</small><strong id="incidents">0</strong><em class="green">INCIDENT ENGINE</em></article></div><div class="grid"><article class="panel"><header><div><small>CALIBER / CORRELATION</small><h2>Active incidents</h2></div><a href="#incidents">VIEW ALL</a></header><div id="incident-preview" class="rows"><p class="empty">Waiting for API data.</p></div></article><article class="panel"><header><div><small>WIRESEAL / CUSTODY</small><h2>Evidence integrity</h2></div><span id="chain" class="pill">CHECKING</span></header><div class="integrity"><strong id="verified">--</strong><span>VERIFIED EVIDENCE</span><p id="storage">Storage: --</p></div></article></div></section>
-    <section class="view" data-panel="incidents"><div class="heading"><div><small>INCIDENT ENGINE / CORRELATED SIGNALS</small><h1>Incidents</h1></div></div><div id="incident-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
-    <section class="view" data-panel="alerts"><div class="heading"><div><small>CALIBER / DETECTOR OUTPUT</small><h1>Alerts</h1></div></div><div id="alert-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
-    <section class="view" data-panel="evidence"><div class="heading"><div><small>WIRESEAL / CHAIN OF CUSTODY</small><h1>Evidence</h1></div></div><div id="evidence-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
+    <nav class="tabs" aria-label="Console views"><a href="#dashboard" data-view="dashboard" class="active">Overview</a><a href="#incidents" data-view="incidents">Incidents <b id="incident-count">0</b></a><a href="#alerts" data-view="alerts">Alerts <b id="alert-count">0</b></a><a href="#flows" data-view="flows">Flows <b id="flow-count">0</b></a><a href="#evidence" data-view="evidence">Evidence <b id="evidence-count">0</b></a></nav>
+
+    <section class="view active" data-panel="dashboard">
+      <div class="heading"><div><small>OPERATIONS / LIVE</small><h1>Detection overview</h1></div><label class="upload"><input id="pcap" type="file" accept=".pcap,.pcapng"> INGEST PCAP</label></div>
+      <div class="metrics">
+        <button class="metric-link" type="button" data-jump="alerts"><small>PACKETS PROCESSED</small><strong id="packets">0</strong><em id="pps">-- packets/sec</em></button>
+        <button class="metric-link" type="button" data-jump="flows"><small>OBSERVED FLOWS</small><strong id="flows">0</strong><em id="fps">-- flows/sec</em></button>
+        <button class="metric-link" type="button" data-jump="alerts"><small>OPEN ALERTS</small><strong id="alerts">0</strong><em class="red">DETECTION OUTPUT</em></button>
+        <button class="metric-link" type="button" data-jump="incidents"><small>CORRELATED INCIDENTS</small><strong id="incidents">0</strong><em class="green">INCIDENT ENGINE</em></button>
+      </div>
+      <article class="panel live-panel">
+        <header>
+          <div><small>PASSIVE TAP / LIVE</small><h2>Traffic &amp; detections</h2></div>
+          <div class="live-controls">
+            <select id="live-mode" title="What to animate"><option value="all">All traffic</option><option value="alerts">Alerts only</option></select>
+            <select id="live-speed" title="Animation speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
+            <button type="button" class="ghost" id="live-toggle">Pause</button>
+          </div>
+        </header>
+        <div class="live-body">
+          <div class="live-canvas-wrap">
+            <canvas id="live-canvas"></canvas>
+            <div id="live-tooltip" class="live-tooltip" hidden></div>
+          </div>
+          <div class="live-feed">
+            <div class="live-feed-head">DETECTION FEED</div>
+            <div id="live-feed-list" class="live-feed-list"><p class="empty">Waiting for detections.</p></div>
+          </div>
+        </div>
+        <div class="live-caption">
+          <span><i class="cap-dot" style="background:#9aabc0"></i> observed host</span>
+          <span><i class="cap-dot" style="background:#ff5470"></i> host with an active alert (colored by severity)</span>
+          <span><i class="cap-dot cap-dot-ring"></i> sensor (passive tap)</span>
+          <span>moving dot = a sampled packet/flow reaching the tap</span>
+        </div>
+      </article>
+
+      <div class="grid grid-3">
+        <article class="panel"><header><div><small>CALIBER / CORRELATION</small><h2>Active incidents</h2></div><a href="#incidents">VIEW ALL</a></header><div id="incident-preview" class="rows"><p class="empty">Waiting for API data.</p></div></article>
+        <article class="panel"><header><div><small>SEVERITY / DISTRIBUTION</small><h2>Alert severity</h2></div></header><div id="severity-chart" class="severity-chart"><p class="empty">Waiting for API data.</p></div></article>
+        <article class="panel"><header><div><small>WIRESEAL / CUSTODY</small><h2>Evidence integrity</h2></div><span id="chain" class="pill">CHECKING</span></header><div class="integrity"><strong id="verified">--</strong><span>VERIFIED EVIDENCE</span><p id="storage">Storage: --</p></div></article>
+      </div>
+    </section>
+
+    <section class="view" data-panel="incidents">
+      <div class="heading"><div><small>INCIDENT ENGINE / CORRELATED SIGNALS</small><h1>Incidents</h1></div></div>
+      <div class="toolbar">
+        <input type="search" id="incidents-q" placeholder="Search incident, host, detector…">
+        <select id="incidents-severity"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Info</option></select>
+        <select id="incidents-sort"><option value="score_desc">Score: high-low</option><option value="score_asc">Score: low-high</option><option value="confidence_desc">Confidence: high-low</option><option value="id_asc">ID</option></select>
+        <button type="button" class="ghost" id="incidents-reset">Reset</button>
+        <span class="spacer"></span>
+        <span class="count-label" id="incidents-count-label"></span>
+        <button type="button" class="ghost" id="incidents-export-csv">Export CSV</button>
+        <button type="button" class="ghost" id="incidents-export-json">Export JSON</button>
+      </div>
+      <div id="incident-list" class="table"><p class="empty">Waiting for API data.</p></div>
+      <div class="pagination" id="incidents-pagination"></div>
+    </section>
+
+    <section class="view" data-panel="alerts">
+      <div class="heading"><div><small>CALIBER / DETECTOR OUTPUT</small><h1>Alerts</h1></div></div>
+      <div class="toolbar">
+        <input type="search" id="alerts-q" placeholder="Search id, threat, detector, flow…">
+        <select id="alerts-severity"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Info</option></select>
+        <select id="alerts-sort"><option value="confidence_desc">Confidence: high-low</option><option value="confidence_asc">Confidence: low-high</option><option value="id_asc">ID</option><option value="severity">Severity</option></select>
+        <button type="button" class="ghost" id="alerts-reset">Reset</button>
+        <span class="spacer"></span>
+        <span class="count-label" id="alerts-count-label"></span>
+        <button type="button" class="ghost" id="alerts-export-csv">Export CSV</button>
+        <button type="button" class="ghost" id="alerts-export-json">Export JSON</button>
+      </div>
+      <div id="alert-list" class="table"><p class="empty">Waiting for API data.</p></div>
+      <div class="pagination" id="alerts-pagination"></div>
+    </section>
+
+    <section class="view" data-panel="flows">
+      <div class="heading"><div><small>FLOW TABLE / OBSERVED TRAFFIC</small><h1>Flows</h1></div></div>
+      <div class="toolbar">
+        <input type="search" id="flows-q" placeholder="Search id, source, destination…">
+        <select id="flows-protocol"><option value="all">All protocols</option></select>
+        <select id="flows-sort"><option value="bytes_desc">Bytes: high-low</option><option value="bytes_asc">Bytes: low-high</option><option value="packets_desc">Packets: high-low</option><option value="duration_desc">Duration: long-short</option></select>
+        <button type="button" class="ghost" id="flows-reset">Reset</button>
+        <span class="spacer"></span>
+        <span class="count-label" id="flows-count-label"></span>
+        <button type="button" class="ghost" id="flows-export-csv">Export CSV</button>
+        <button type="button" class="ghost" id="flows-export-json">Export JSON</button>
+      </div>
+      <div id="flow-list" class="table"><p class="empty">Waiting for API data.</p></div>
+      <div class="pagination" id="flows-pagination"></div>
+    </section>
+
+    <section class="view" data-panel="evidence">
+      <div class="heading"><div><small>WIRESEAL / CHAIN OF CUSTODY</small><h1>Evidence</h1></div></div>
+      <div class="toolbar">
+        <input type="search" id="evidence-q" placeholder="Search id, alert, threat, hash…">
+        <select id="evidence-status"><option value="all">All statuses</option><option value="verified">Verified</option><option value="failed">Failed</option></select>
+        <select id="evidence-sort"><option value="ts_desc">Newest first</option><option value="ts_asc">Oldest first</option><option value="id_asc">ID</option></select>
+        <button type="button" class="ghost" id="evidence-reset">Reset</button>
+        <span class="spacer"></span>
+        <span class="count-label" id="evidence-count-label"></span>
+        <button type="button" class="ghost" id="evidence-export-csv">Export CSV</button>
+        <button type="button" class="ghost" id="evidence-export-json">Export JSON</button>
+      </div>
+      <div id="evidence-list" class="table"><p class="empty">Waiting for API data.</p></div>
+      <div class="pagination" id="evidence-pagination"></div>
+    </section>
+
+    <div id="modal-overlay" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header><h3 id="modal-title">Details</h3><button id="modal-close" class="icon" type="button" aria-label="Close">✕</button></header>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" role="status"></div>
   </main>
   <footer><span>PERSON 6 / INTEGRATION + EVALUATION</span><span>REST + WEBSOCKET / CYCLOPS API</span></footer>
