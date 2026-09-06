@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CYCLOPS | Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="#dashboard"><span class="eye">◉</span><span><b>CYCLOPS</b><small>PASSIVE NDR / OPERATIONS CONSOLE</small></span></a><div class="top-actions"><span id="connection" class="status offline"><i></i> API OFFLINE</span><button id="refresh" class="icon" title="Refresh data" aria-label="Refresh data">↻</button></div></header>
+  <main class="shell">
+    <section class="banner"><div><small>VISIBILITY MODEL</small><b>ONE-WAY OBSERVATION</b></div><span class="arrow"></span><div class="banner-copy"><b>RETURN PATH UNAVAILABLE</b><span>Inference is marked, never hidden.</span></div><div class="tap"><b id="tap-health">--</b><span>TAP HEALTH</span></div></section>
+    <nav class="tabs" aria-label="Console views"><a href="#dashboard" data-view="dashboard" class="active">Overview</a><a href="#incidents" data-view="incidents">Incidents <b id="incident-count">0</b></a><a href="#alerts" data-view="alerts">Alerts <b id="alert-count">0</b></a><a href="#evidence" data-view="evidence">Evidence</a></nav>
+    <section class="view active" data-panel="dashboard"><div class="heading"><div><small>OPERATIONS / LIVE</small><h1>Detection overview</h1></div><label class="upload"><input id="pcap" type="file" accept=".pcap,.pcapng"> INGEST PCAP</label></div><div class="metrics"><article><small>PACKETS PROCESSED</small><strong id="packets">0</strong><em id="pps">-- packets/sec</em></article><article><small>OBSERVED FLOWS</small><strong id="flows">0</strong><em id="fps">-- flows/sec</em></article><article><small>OPEN ALERTS</small><strong id="alerts">0</strong><em class="red">DETECTION OUTPUT</em></article><article><small>CORRELATED INCIDENTS</small><strong id="incidents">0</strong><em class="green">INCIDENT ENGINE</em></article></div><div class="grid"><article class="panel"><header><div><small>CALIBER / CORRELATION</small><h2>Active incidents</h2></div><a href="#incidents">VIEW ALL</a></header><div id="incident-preview" class="rows"><p class="empty">Waiting for API data.</p></div></article><article class="panel"><header><div><small>WIRESEAL / CUSTODY</small><h2>Evidence integrity</h2></div><span id="chain" class="pill">CHECKING</span></header><div class="integrity"><strong id="verified">--</strong><span>VERIFIED EVIDENCE</span><p id="storage">Storage: --</p></div></article></div></section>
+    <section class="view" data-panel="incidents"><div class="heading"><div><small>INCIDENT ENGINE / CORRELATED SIGNALS</small><h1>Incidents</h1></div></div><div id="incident-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
+    <section class="view" data-panel="alerts"><div class="heading"><div><small>CALIBER / DETECTOR OUTPUT</small><h1>Alerts</h1></div></div><div id="alert-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
+    <section class="view" data-panel="evidence"><div class="heading"><div><small>WIRESEAL / CHAIN OF CUSTODY</small><h1>Evidence</h1></div></div><div id="evidence-list" class="table"><p class="empty">Waiting for API data.</p></div></section>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+  <footer><span>PERSON 6 / INTEGRATION + EVALUATION</span><span>REST + WEBSOCKET / CYCLOPS API</span></footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

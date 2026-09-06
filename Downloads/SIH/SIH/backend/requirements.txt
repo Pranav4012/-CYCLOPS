@@ -4,4 +4,5 @@ python-multipart>=0.0.9
 SQLAlchemy>=2.0
 psycopg[binary]>=3.2
 httpx2>=0.1
+pytest>=8.0
 -r ../reference-impl/requirements.txt
