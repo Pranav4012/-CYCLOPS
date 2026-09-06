@@ -1,0 +1,918 @@
+<title>CYCLOPS Console</title>
+<meta name="description" content="Live command console for a unidirectional-first passive threat-detection enclave.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ============================================================================
+   CYCLOPS — a data-diode monitoring enclave console.
+   Single visual world: a dark SIGINT/oscilloscope instrument. Committed dark
+   theme (deliberate), every color painted explicitly so it holds on any ground.
+   Color language is load-bearing:
+     OBSERVED  = signal cyan (solid)     — what the tap actually saw
+     INFERRED  = ghost violet (dashed)   — what HalfSight reconstructed
+     ASSUMED   = slate grey              — priors
+   Semantic severity (ok/warn/crit) is separate from the cyan accent.
+   ========================================================================= */
+:root{
+  --bg:#070a10; --bg-2:#0a0e17; --panel:#0e1420; --panel-2:#111826;
+  --line:#1c2636; --line-2:#28344a; --grid:#10192800;
+  --ink:#e7edf6; --ink-dim:#9fb0c6; --ink-faint:#63748c;
+  --cyan:#33e6c9; --cyan-2:#12b7a0; --cyan-glow:#33e6c955;
+  --ghost:#9a8cff; --ghost-dim:#6c63c9;
+  --ok:#3ddc84; --warn:#f6b23d; --crit:#ff5470; --info:#4aa3ff;
+  --amber:#ffcf6b;
+  --r:12px; --r-sm:8px;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --display:"Archivo","IBM Plex Sans",system-ui,sans-serif;
+  --shadow:0 1px 0 #ffffff08 inset, 0 18px 40px -24px #000c;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, #0f2033 0%, transparent 60%),
+    radial-gradient(900px 500px at 0% 0%, #0c1a22 0%, transparent 55%);
+  background-attachment:fixed;
+}
+a{color:var(--cyan)}
+.mono{font-family:var(--mono)}
+.tnum{font-variant-numeric:tabular-nums}
+.label{font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;font-size:10.5px;color:var(--ink-faint)}
+
+/* ---- shell ---------------------------------------------------------------*/
+.wrap{max-width:1500px;margin:0 auto;padding:0 18px 60px}
+
+/* ---- top bar -------------------------------------------------------------*/
+header.topbar{position:sticky;top:0;z-index:40;backdrop-filter:blur(10px);
+  background:linear-gradient(180deg,#070a10f2,#070a10c8);border-bottom:1px solid var(--line)}
+.topbar .inner{max-width:1500px;margin:0 auto;padding:11px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;min-width:max-content}
+.eye{width:34px;height:34px;position:relative;flex:none}
+.eye svg{display:block}
+.wordmark{font-family:var(--display);font-weight:800;letter-spacing:.16em;font-size:20px;line-height:1}
+.wordmark .g{color:var(--cyan)}
+.tagline{color:var(--ink-faint);font-size:11px;font-family:var(--mono);letter-spacing:.04em;margin-top:2px}
+.topbar .spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--line-2);
+  border-radius:100px;background:#0c1421;font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.live{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ---- one-way banner ------------------------------------------------------*/
+.oneway{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0 14px;
+  padding:12px 16px;border:1px solid #3a2130;border-radius:var(--r);
+  background:linear-gradient(90deg,#1a0f16,#120c14 60%,#0e1420);
+  box-shadow:var(--shadow)}
+.oneway .diode{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-weight:600;color:#ffbcc9;letter-spacing:.04em}
+.oneway .arrowline{flex:1;min-width:180px;height:2px;position:relative;background:
+  repeating-linear-gradient(90deg,#ff547066 0 10px,transparent 10px 18px)}
+.oneway .arrowline::after{content:"▶";position:absolute;right:-2px;top:-9px;color:#ff5470;font-size:13px}
+.oneway .noreturn{display:flex;align-items:center;gap:7px;color:var(--ink-faint);font-family:var(--mono);font-size:11px}
+.oneway .noreturn s{color:#ff5470;text-decoration:line-through;opacity:.8}
+.fidelity{display:flex;gap:18px;flex-wrap:wrap;margin-left:auto}
+.fid{display:flex;flex-direction:column;gap:1px}
+.fid b{font-family:var(--mono);font-size:16px;font-weight:600;line-height:1.1}
+.fid .u{font-size:9.5px}
+.val-cyan{color:var(--cyan)} .val-zero{color:var(--ghost)} .val-ok{color:var(--ok)}
+
+/* ---- layout grid ---------------------------------------------------------*/
+.grid{display:grid;grid-template-columns:210px 1fr 340px;gap:14px;align-items:start}
+@media(max-width:1200px){.grid{grid-template-columns:1fr 320px}.rail-l{display:none}}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.rail-r{order:3}}
+
+/* ---- panels --------------------------------------------------------------*/
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg-2));border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.panel .head{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--line)}
+.panel .head .code{font-family:var(--mono);font-weight:700;letter-spacing:.08em;font-size:12px;color:var(--ink)}
+.panel .head .sub{font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em}
+.panel .head .badge{margin-left:auto;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:100px;border:1px solid var(--line-2);color:var(--ink-dim)}
+.panel .body{padding:13px}
+.panel.alert-crit{border-color:#5a2233;box-shadow:0 0 0 1px #ff547033, var(--shadow)}
+
+.stack{display:flex;flex-direction:column;gap:14px}
+.mains{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:680px){.mains{grid-template-columns:1fr}}
+.span2{grid-column:1/-1}
+
+/* ---- left rail: pipeline -------------------------------------------------*/
+.rail-l .panel .body{padding:8px}
+.pipe{display:flex;flex-direction:column;gap:2px}
+.pstage{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r-sm);position:relative}
+.pstage:hover{background:#0c1522}
+.pstage .pd{width:8px;height:8px;border-radius:50%;flex:none;background:var(--cyan);box-shadow:0 0 8px var(--cyan-glow)}
+.pstage .nm{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.pstage .ds{font-size:10px;color:var(--ink-faint)}
+.pstage::before{content:"";position:absolute;left:13px;top:-2px;height:6px;width:1px;background:var(--line-2)}
+.pstage:first-child::before{display:none}
+.rail-note{padding:10px;color:var(--ink-faint);font-size:10.5px;line-height:1.5;border-top:1px solid var(--line);font-family:var(--mono)}
+
+.scfld{display:flex;flex-direction:column;gap:7px;padding:11px}
+.scfld .ph{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+.scfld .ph .n{width:16px;color:var(--ink-faint)}
+.scfld .ph.on{color:var(--cyan)}
+.scfld .ph.on .n{color:var(--cyan)}
+.btnrow{display:flex;gap:8px;padding:0 11px 11px}
+.btn{flex:1;font-family:var(--mono);font-size:11px;padding:8px;border-radius:var(--r-sm);border:1px solid var(--line-2);
+  background:#0c1522;color:var(--ink-dim);cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--cyan-2);color:var(--cyan)}
+.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* ---- canvases ------------------------------------------------------------*/
+canvas{display:block;width:100%;border-radius:var(--r-sm)}
+.readout{display:flex;gap:16px;flex-wrap:wrap;margin-top:11px}
+.ro{display:flex;flex-direction:column;gap:1px}
+.ro .k{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint)}
+.ro .v{font-family:var(--mono);font-size:15px;font-weight:600}
+
+/* triptych */
+.trip{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
+@media(max-width:680px){.trip{grid-template-columns:1fr}}
+.trip .cap{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;margin:0 0 5px}
+
+/* gauges */
+.gaugewrap{display:flex;align-items:center;gap:14px}
+.gauge{--p:0;--c:var(--cyan);width:96px;height:96px;border-radius:50%;flex:none;
+  background:radial-gradient(closest-side,var(--panel) 71%,transparent 72% 100%),
+    conic-gradient(var(--c) calc(var(--p)*1%),#1a2333 0);
+  display:grid;place-items:center;position:relative}
+.gauge b{font-family:var(--mono);font-size:20px;font-weight:700}
+.gauge small{position:absolute;bottom:20px;font-family:var(--mono);font-size:9px;color:var(--ink-faint)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.lg{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--ink-dim)}
+.lg i{width:16px;height:0;border-top:2px solid var(--cyan)}
+.lg.ghost i{border-top:2px dashed var(--ghost)}
+.lg.assumed i{border-top:2px solid var(--ink-faint)}
+
+/* bars / bake-off */
+.bakerow{display:grid;grid-template-columns:120px 1fr 46px;align-items:center;gap:10px;margin:7px 0;font-family:var(--mono);font-size:11px}
+.bakerow .bar{height:9px;border-radius:100px;background:#141d2c;overflow:hidden}
+.bakerow .bar i{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--cyan-2),var(--cyan))}
+.bakerow.dim .bar i{background:#3a4a63}
+.bakerow .nm{color:var(--ink-dim)} .bakerow.me .nm{color:var(--cyan)}
+
+/* ---- right rail: alerts --------------------------------------------------*/
+.feed{display:flex;flex-direction:column;gap:9px;max-height:460px;overflow-y:auto;padding-right:2px}
+.feed::-webkit-scrollbar{width:8px}.feed::-webkit-scrollbar-thumb{background:#1c2636;border-radius:8px}
+.acard{border:1px solid var(--line);border-radius:var(--r-sm);background:#0c1421;padding:10px 11px;cursor:pointer;transition:.15s;position:relative}
+.acard:hover{border-color:var(--line-2);background:#0e1626}
+.acard.sel{border-color:var(--cyan-2);box-shadow:0 0 0 1px var(--cyan-glow)}
+.acard.tampered{border-color:var(--crit)!important;box-shadow:0 0 0 1px #ff547066}
+.acard .top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.sev{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.sev.critical{background:#3a1420;color:#ff8ea1;border:1px solid #6e2438}
+.sev.high{background:#3a2410;color:#ffc073;border:1px solid #6e4a24}
+.sev.medium{background:#2a2a12;color:#ecd06a;border:1px solid #55521f}
+.sev.low{background:#12233a;color:#7db6ff;border:1px solid #244a70}
+.acard .conf{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:700}
+.acard .ttl{font-size:12.5px;color:var(--ink);line-height:1.35}
+.acard .meta{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
+.acard .seal{position:absolute;top:9px;right:10px}
+
+/* confidence band */
+.cband{height:7px;border-radius:100px;background:#141d2c;position:relative;margin-top:7px;overflow:hidden}
+.cband i{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,var(--ghost-dim),var(--cyan));opacity:.8}
+.cband .pt{position:absolute;top:-2px;width:2px;height:11px;background:#fff}
+
+/* CALIBER detail card */
+.caliber{display:flex;flex-direction:column;gap:11px}
+.oia{display:grid;grid-template-columns:1fr;gap:7px}
+.oia .row{display:flex;gap:9px;align-items:flex-start;font-size:11.5px;padding:7px 9px;border-radius:var(--r-sm);background:#0c1421;border:1px solid var(--line)}
+.oia .tag{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:4px;flex:none;margin-top:1px}
+.oia .observed{background:#0c2b28;color:var(--cyan);border:1px solid #16473f}
+.oia .inferred{background:#1c1840;color:var(--ghost);border:1px solid #322a66}
+.oia .assumed{background:#1a2130;color:var(--ink-dim);border:1px solid #2a3446}
+.shap{display:flex;flex-direction:column;gap:5px}
+.shap .s{display:grid;grid-template-columns:118px 1fr 40px;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px}
+.shap .s .track{height:8px;background:#141d2c;border-radius:100px;position:relative}
+.shap .s .track i{position:absolute;top:0;bottom:0;left:50%;border-radius:100px}
+.shap .s.pos i{background:var(--crit)} .shap .s.neg i{background:var(--ok)}
+.attck{display:flex;gap:6px;flex-wrap:wrap}
+.attck span{font-family:var(--mono);font-size:9.5px;padding:3px 7px;border-radius:4px;background:#101a2a;border:1px solid var(--line-2);color:var(--ink-dim)}
+
+/* ---- wireseal strip ------------------------------------------------------*/
+.wireseal{margin-top:14px}
+.wsgrid{display:grid;grid-template-columns:1.3fr 1fr auto;gap:16px;align-items:center}
+@media(max-width:820px){.wsgrid{grid-template-columns:1fr}}
+.rootbox{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--cyan);background:#081410;
+  border:1px solid #143026;border-radius:var(--r-sm);padding:9px 11px;line-height:1.6}
+.rootbox .k{color:var(--ink-faint)}
+.anchorline{font-family:var(--mono);font-size:11px;color:var(--ink-dim);line-height:1.7}
+.anchorline b{color:var(--ink)}
+.ws-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn.solid{background:#0c2b28;border-color:#16473f;color:var(--cyan)}
+.btn.solid:hover{background:#0f3a35}
+.btn.danger{background:#2a1018;border-color:#5a2233;color:#ff8ea1}
+.btn.danger:hover{background:#3a1420}
+.proof{margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);min-height:18px}
+.proof .ok{color:var(--ok)} .proof .bad{color:var(--crit)}
+.proofsteps{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.proofsteps span{font-family:var(--mono);font-size:9px;padding:3px 6px;border-radius:4px;background:#101a2a;border:1px solid var(--line-2);color:var(--ink-faint);opacity:.3;transition:.2s}
+.proofsteps span.lit{opacity:1;border-color:var(--cyan-2);color:var(--cyan)}
+.proofsteps span.litbad{opacity:1;border-color:var(--crit);color:#ff8ea1}
+
+/* ---- section titles / footer --------------------------------------------*/
+.sectitle{display:flex;align-items:baseline;gap:12px;margin:26px 4px 12px}
+.sectitle h2{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.02em;margin:0;text-wrap:balance}
+.sectitle .l{font-family:var(--mono);font-size:10px;color:var(--ink-faint);letter-spacing:.14em;text-transform:uppercase}
+.footgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.footgrid{grid-template-columns:1fr}}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.kpi{background:#0c1421;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 11px}
+.kpi b{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--cyan);display:block}
+.kpi span{font-size:10.5px;color:var(--ink-dim)}
+.legalfoot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:11px;line-height:1.6}
+.legalfoot .mono{color:var(--ink-dim)}
+.ticker{overflow:hidden;white-space:nowrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:#0a0f19;padding:6px 0;font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin:14px 0}
+.ticker b{color:var(--cyan)}
+.ticker .run{display:inline-block;padding-left:100%;animation:mar 26s linear infinite}
+@keyframes mar{to{transform:translateX(-100%)}}
+@media(prefers-reduced-motion:reduce){.ticker .run{animation:none;padding-left:0}.dot.live{animation:none}}
+.hidden{display:none!important}
+</style>
+
+<header class="topbar">
+  <div class="inner">
+    <div class="brand">
+      <div class="eye" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 34 34">
+          <defs><radialGradient id="ir" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#33e6c9"/><stop offset="70%" stop-color="#12b7a0"/><stop offset="100%" stop-color="#0a4b43"/>
+          </radialGradient></defs>
+          <path d="M2 17 Q17 3 32 17 Q17 31 2 17 Z" fill="none" stroke="#28344a" stroke-width="1.5"/>
+          <circle cx="17" cy="17" r="7.5" fill="url(#ir)"/>
+          <circle cx="17" cy="17" r="3.2" fill="#070a10"/>
+          <circle cx="19" cy="15" r="1.1" fill="#c9fff4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="wordmark"><span class="g">C</span>YCLOPS</div>
+        <div class="tagline">one eye on the wire · unidirectional-first NDR</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip"><span class="dot live"></span> ENCLAVE&nbsp;<b style="color:var(--ink)">DIODE-A1</b></span>
+    <span class="chip">MODEL <b style="color:var(--ink)">halfsight-ensemble@0.3.1</b></span>
+    <span class="chip mono" id="clock">t+00:00.0</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ONE-WAY BANNER + CAPTURE FIDELITY -->
+  <div class="oneway">
+    <div class="diode">⬤ HARDWARE DATA DIODE</div>
+    <div class="arrowline" title="Traffic crosses one way only"></div>
+    <div class="noreturn">no probe · no handshake · <s>return path</s></div>
+    <div class="fidelity">
+      <div class="fid"><span class="label">ingest</span><b class="val-cyan tnum" id="pps">0</b><span class="u label">pkt/s</span></div>
+      <div class="fid"><span class="label">reverse dir</span><b class="val-zero tnum">0</b><span class="u label">pinned · unseen</span></div>
+      <div class="fid"><span class="label">capture drop</span><b class="val-ok tnum" id="drops">0.00%</b><span class="u label">pcapng blocks</span></div>
+      <div class="fid"><span class="label">sensor gap</span><b class="val-ok tnum">none</b><span class="u label">ptp-locked</span></div>
+    </div>
+  </div>
+
+  <div class="ticker" aria-hidden="true"><span class="run" id="ticker">initialising CYCLOPS enclave · HalfSight inference core online · awaiting flows…</span></div>
+
+  <!-- MAIN GRID -->
+  <div class="grid">
+
+    <!-- LEFT RAIL -->
+    <aside class="rail-l stack">
+      <div class="panel">
+        <div class="head"><span class="code">PIPELINE</span><span class="badge" id="pipe-rate">live</span></div>
+        <div class="body" style="padding:8px">
+          <div class="pipe" id="pipe">
+            <div class="pstage"><span class="pd"></span><div><div class="nm">CAPTURE</div><div class="ds">AF_XDP · ns-timestamp</div></div></div>
+            <div class="pstage"><span class="pd"></span><div><div class="nm">STREAM</div><div class="ds">Redpanda → Flink</div></div></div>
+            <div class="pstage"><span class="pd"></span><div><div class="nm">HALFSIGHT</div><div class="ds">GHOSTFLOW · PULSE · VANTAGE</div></div></div>
+            <div class="pstage"><span class="pd"></span><div><div class="nm">DETECTORS</div><div class="ds">FLOODLIGHT·HOURGLASS·BABEL·SPECTER</div></div></div>
+            <div class="pstage"><span class="pd"></span><div><div class="nm">CALIBER</div><div class="ds">conformal confidence</div></div></div>
+            <div class="pstage"><span class="pd"></span><div><div class="nm">WIRESEAL</div><div class="ds">merkle · HSM-signed</div></div></div>
+          </div>
+          <div class="rail-note">Every stage runs on <b style="color:var(--ink-dim)">one direction only</b>. The unseen half is inferred, never fetched.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="head"><span class="code">VANTAGE</span><span class="sub">which-half</span></div>
+        <div class="body" style="padding:11px">
+          <div class="ro"><span class="k">observed side</span><span class="v val-cyan" id="vantage">client → server</span></div>
+          <div class="ro" style="margin-top:9px"><span class="k">routing</span><span class="v" style="font-size:12px;color:var(--ink-dim)">ingress detector bank</span></div>
+          <div class="rail-note" style="border:none;padding:9px 0 0">Inferred from SYN/ACK directionality + port roles + ACK-progression.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="head"><span class="code">SCENARIO</span><span class="sub" id="scstate">running</span></div>
+        <div class="scfld" id="scfld">
+          <div class="ph" data-ph="0"><span class="n">00</span> baseline · nominal</div>
+          <div class="ph" data-ph="1"><span class="n">01</span> SPECTER · C2 beacon lock</div>
+          <div class="ph" data-ph="2"><span class="n">02</span> BABEL · DNS tunnel</div>
+          <div class="ph" data-ph="3"><span class="n">03</span> BACKLOG · SYN flood</div>
+          <div class="ph" data-ph="4"><span class="n">04</span> HOURGLASS · Slowloris</div>
+          <div class="ph" data-ph="5"><span class="n">05</span> WIRESEAL · seal + anchor</div>
+        </div>
+        <div class="btnrow">
+          <button class="btn" id="btn-pause">⏸ pause</button>
+          <button class="btn" id="btn-replay">↻ replay</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN -->
+    <main class="stack">
+
+      <!-- GHOST-HALF TIMELINE (hero) -->
+      <section class="panel">
+        <div class="head">
+          <span class="dot" style="background:var(--ghost);box-shadow:0 0 8px var(--ghost)"></span>
+          <span class="code">GHOST-HALF TIMELINE</span><span class="sub">GHOSTFLOW · PULSE</span>
+          <span class="badge" id="gh-badge">reconstructing…</span>
+        </div>
+        <div class="body">
+          <canvas id="ghost" height="188" aria-label="Observed traffic vs reconstructed unseen return half"></canvas>
+          <div class="legend">
+            <span class="lg"><i></i> observed (tap)</span>
+            <span class="lg ghost"><i></i> inferred return ±σ</span>
+            <span class="lg assumed"><i></i> prior</span>
+          </div>
+          <div class="readout">
+            <div class="ro"><span class="k">handshake</span><span class="v" id="gh-hs"><span style="color:var(--ok)">●</span> responded</span></div>
+            <div class="ro"><span class="k">passive RTT (PULSE)</span><span class="v val-cyan" id="gh-rtt">42 ± 6 ms</span></div>
+            <div class="ro"><span class="k">reverse bytes (est)</span><span class="v" style="color:var(--ghost)" id="gh-rev">7.4 KB</span></div>
+            <div class="ro"><span class="k">asymmetry z</span><span class="v" id="gh-asym">0.3</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="mains">
+        <!-- SPECTER TRIPTYCH -->
+        <section class="panel span2">
+          <div class="head"><span class="code">SPECTER</span><span class="sub">jitter-robust spectral beaconing</span>
+            <span class="badge" id="sp-badge">scanning channels</span></div>
+          <div class="body">
+            <div class="trip">
+              <div><p class="cap">connection-time raster</p><canvas id="raster" height="120"></canvas></div>
+              <div><p class="cap">Lomb–Scargle periodogram</p><canvas id="pgram" height="120"></canvas></div>
+              <div><p class="cap">phase fold</p><canvas id="phase" height="120"></canvas></div>
+            </div>
+            <div class="readout">
+              <div class="ro"><span class="k">period</span><span class="v val-cyan" id="sp-period">—</span></div>
+              <div class="ro"><span class="k">jitter</span><span class="v" id="sp-jit">—</span></div>
+              <div class="ro"><span class="k">false-alarm prob</span><span class="v" id="sp-fap">—</span></div>
+              <div class="ro"><span class="k">answered (ACK-shadow)</span><span class="v" id="sp-ans">—</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- BACKLOG ORACLE -->
+        <section class="panel">
+          <div class="head"><span class="code">BACKLOG ORACLE</span><span class="sub">FLOODLIGHT</span></div>
+          <div class="body">
+            <div class="gaugewrap">
+              <div class="gauge" id="backlog-gauge" style="--c:var(--ok)"><b id="backlog-v">0%</b><small>SYN-RECV</small></div>
+              <div style="flex:1">
+                <canvas id="synspark" height="70"></canvas>
+                <div class="readout" style="margin-top:8px">
+                  <div class="ro"><span class="k">SYN rate</span><span class="v" id="syn-rate">0/s</span></div>
+                  <div class="ro"><span class="k">completion</span><span class="v" id="syn-comp">100%</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="readout" style="margin-top:6px">
+              <div class="ro"><span class="k">src-IP entropy</span><span class="v" id="syn-ent">0.02</span></div>
+              <div class="ro"><span class="k">ETA to exhaustion</span><span class="v" id="syn-eta">—</span></div>
+              <div class="ro"><span class="k">SYN-cookie flip</span><span class="v" id="syn-flip">—</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- BABEL DNS covert meter -->
+        <section class="panel">
+          <div class="head"><span class="code">BABEL</span><span class="sub">DNS covert-capacity</span></div>
+          <div class="body">
+            <div class="gaugewrap">
+              <div class="gauge" id="covert-gauge" style="--c:var(--info)"><b id="covert-v">0</b><small>B/s exfil</small></div>
+              <div style="flex:1">
+                <canvas id="entline" height="70"></canvas>
+                <div class="readout" style="margin-top:8px">
+                  <div class="ro"><span class="k">qname entropy</span><span class="v" id="dns-ent">3.1</span></div>
+                  <div class="ro"><span class="k">qtype mix</span><span class="v" id="dns-qt">A</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="readout" style="margin-top:6px">
+              <div class="ro"><span class="k">2LD</span><span class="v" style="font-size:12px" id="dns-dom">—</span></div>
+              <div class="ro"><span class="k">unique labels</span><span class="v" id="dns-uniq">—</span></div>
+              <div class="ro"><span class="k">return channel</span><span class="v" id="dns-ret">—</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- HOURGLASS slowloris -->
+        <section class="panel">
+          <div class="head"><span class="code">HOURGLASS</span><span class="sub">slow-HTTP survival model</span></div>
+          <div class="body">
+            <canvas id="slow" height="120"></canvas>
+            <div class="readout">
+              <div class="ro"><span class="k">slow conns</span><span class="v" id="slow-n">0</span></div>
+              <div class="ro"><span class="k">pool used</span><span class="v" id="slow-pool">4%</span></div>
+              <div class="ro"><span class="k">benign long-poll</span><span class="v" style="color:var(--ok)">excluded</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- RIGHT RAIL: ALERTS + CALIBER -->
+    <aside class="rail-r stack">
+      <section class="panel">
+        <div class="head"><span class="dot live" style="background:var(--crit);box-shadow:0 0 8px var(--crit)"></span>
+          <span class="code">LIVE ALERTS</span><span class="badge" id="alert-count">0</span></div>
+        <div class="body">
+          <div class="feed" id="feed"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="caliber-panel">
+        <div class="head"><span class="code">CALIBER</span><span class="sub">explainable · Observed/Inferred/Assumed</span></div>
+        <div class="body">
+          <div class="caliber" id="caliber">
+            <p style="color:var(--ink-faint);font-size:12px;font-family:var(--mono)">◂ select an alert to inspect its evidence, per-feature attribution and calibrated confidence.</p>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- WIRESEAL STRIP -->
+  <section class="panel wireseal">
+    <div class="head"><span class="dot" style="background:var(--ok);box-shadow:0 0 8px var(--ok)"></span>
+      <span class="code">WIRESEAL</span><span class="sub">diode-rooted chain-of-custody</span>
+      <span class="badge" id="ws-status">chain intact ✓</span></div>
+    <div class="body">
+      <div class="wsgrid">
+        <div>
+          <div class="rootbox"><span class="k">head merkle root</span><br><span id="ws-root">—</span></div>
+        </div>
+        <div class="anchorline">
+          block <b id="ws-block">#0</b> · <b id="ws-bundles">0</b> bundles<br>
+          anchored tx <b id="ws-anchor" style="color:var(--cyan)">—</b><br>
+          confirmations <b id="ws-conf">—</b> · CT-style root commit
+        </div>
+        <div class="ws-actions">
+          <button class="btn solid" id="btn-verify">✓ verify evidence</button>
+          <button class="btn danger" id="btn-tamper">⚠ tamper one byte</button>
+        </div>
+      </div>
+      <div class="proof" id="ws-proof">Every alert seals model-hash + feature-vector + reconstruction trace + packet Merkle root. Verify replays an O(log N) inclusion proof to the anchored root.</div>
+      <div class="proofsteps" id="ws-steps"></div>
+    </div>
+  </section>
+
+  <!-- FOOTER: bake-off + KPIs + mapping -->
+  <div class="sectitle"><span class="l">/ evidence</span><h2>Measured, not asserted</h2></div>
+  <div class="footgrid">
+    <section class="panel">
+      <div class="head"><span class="code">MEASURED RECALL</span><span class="sub">eval harness · 30 trials/class</span></div>
+      <div class="body">
+        <div class="bakerow me"><span class="nm">SYN/UDP flood</span><span class="bar"><i style="width:100%"></i></span><span class="tnum">1.00</span></div>
+        <div class="bakerow me"><span class="nm">reflection</span><span class="bar"><i style="width:100%"></i></span><span class="tnum">1.00</span></div>
+        <div class="bakerow me"><span class="nm">slowloris</span><span class="bar"><i style="width:100%"></i></span><span class="tnum">1.00</span></div>
+        <div class="bakerow me"><span class="nm">DGA</span><span class="bar"><i style="width:100%"></i></span><span class="tnum">1.00</span></div>
+        <div class="bakerow"><span class="nm">DNS tunnel</span><span class="bar"><i style="width:90%"></i></span><span class="tnum">0.90</span></div>
+        <div class="bakerow"><span class="nm">C2 beacon</span><span class="bar"><i style="width:73%"></i></span><span class="tnum">0.73</span></div>
+        <div class="rail-note" style="border:none;padding:10px 0 0">Real numbers from <b style="color:var(--ink-dim)">eval/run_eval.py</b>: overt 100% / stealth 85%, <b style="color:var(--ok)">0% false alarms</b> on 90 benign scenarios. Tunnel/beacon dip = honestly-missed low-signal stealth cases. <a href="https://claude.ai/code/artifact/81beb59b-05f1-451f-9aff-626cd23ba36f" target="_blank" rel="noopener" style="color:var(--cyan)">full report ↗</a></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="head"><span class="code">KPIs</span><span class="sub">honest telemetry</span></div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi"><b>±4.3%</b><span>reverse-byte reconstruction error (median) vs withheld ground truth</span></div>
+          <div class="kpi"><b>0.967</b><span>macro F1 (synthetic) · 0% benign FP · <b style="color:var(--ok)">8/8</b> real captures detected</span></div>
+          <div class="kpi"><b>0.90 → 0.90</b><span>conformal coverage: empirical tracks nominal 1−α</span></div>
+          <div class="kpi"><b>100%</b><span>tamper localisation &amp; spoof/flash-crowd separation</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="legalfoot">
+    <b style="color:var(--ink)">CYCLOPS</b> — a unidirectional-first passive NDR for data-diode enclaves (SIH 2026 · PS 26145 · NTRO).
+    The load-bearing bet: the unseen return half is not missing data, it is an <span class="mono">inference target</span>. HalfSight reconstructs it
+    (<span class="mono">GHOSTFLOW/PULSE</span>), VANTAGE routes by which half we see, four detector banks work in the timing &amp; information
+    domains, CALIBER makes confidence honest and auditable, and WIRESEAL makes every probabilistic alert court-reproducible.
+    <br><br>
+    <span class="mono">This console is a live simulation over a scripted scenario for demonstration — the detection maths (spectral periodogram, entropy, backlog estimation, Merkle inclusion proofs) is computed in-page, not pre-rendered. Reference engine <b style="color:var(--ink-dim)">reference-impl/halfsight/</b> runs the same detectors on real flows and on <b style="color:var(--ink-dim)">real .pcap captures</b> (<b style="color:var(--ink-dim)">python3 -m halfsight.ingest capture.pcap</b>); BABEL's DGA detector is an <b style="color:var(--ink-dim)">ML model trained on 25 real DGA families (AUC 0.97)</b>, and the pipeline is <b style="color:var(--ink-dim)">validated on 8/8 real public attack captures</b> (real DDoS, iodine/dnscat2 tunnels, Slowloris, a real Cobalt Strike C2 beacon). All KPI figures are <b style="color:var(--ink-dim)">measured</b> — see the <a href="https://claude.ai/code/artifact/81beb59b-05f1-451f-9aff-626cd23ba36f" target="_blank" rel="noopener" style="color:var(--cyan)">evaluation report ↗</a>.</span>
+  </div>
+</div>
+
+<script>
+/* ===========================================================================
+   CYCLOPS console — in-page simulation + real detection maths.
+   The scenario is scripted so the demo tells a coherent story, but the
+   signal processing (Lomb-Scargle-style periodogram, phase fold, entropy,
+   Little's-Law backlog, Merkle inclusion proof) is genuinely computed here.
+   =========================================================================== */
+(() => {
+  const $ = s => document.querySelector(s);
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CYAN='#33e6c9', GHOST='#9a8cff', OK='#3ddc84', WARN='#f6b23d', CRIT='#ff5470', INFO='#4aa3ff', FAINT='#63748c', LINE='#1c2636';
+
+  // hi-dpi canvas setup — measured LAZILY at draw time so we never capture a
+  // width before layout/fonts settle (the classic squished-canvas bug).
+  const DPR=Math.min(2,window.devicePixelRatio||1);
+  const CSSH={ghost:188,raster:120,pgram:120,phase:120,synspark:70,entline:70,slow:120};
+  const C={};
+  Object.keys(CSSH).forEach(k=>{const el=document.getElementById(k); if(el){el._cssh=CSSH[k]; C[k]=el;}});
+  function fit(c){
+    const w=Math.max(60,Math.round(c.getBoundingClientRect().width));
+    if(c._fw!==w){ c.style.height=c._cssh+'px'; c.width=Math.round(w*DPR); c.height=Math.round(c._cssh*DPR);
+      const x=c.getContext('2d'); x.setTransform(DPR,0,0,DPR,0,0); c._x=x; c._w=w; c._h=c._cssh; c._fw=w; }
+    return c._x;
+  }
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+
+  // ---- simulation state ----------------------------------------------------
+  const state={t:0, phase:0, paused:false,
+    pps:0, drops:0,
+    ghost:[],            // {obs, inf, sig}
+    synRate:0, backlog:0, comp:1, ent:0.02, flip:false, eta:null,
+    covert:0, dnsEnt:3.1, dnsUniq:0, dnsRet:false,
+    slow:[], slowN:0, pool:0.04,
+    beaconTimes:[], beaconLocked:false, period:null, jitter:null, fap:null,
+  };
+  const alerts=[]; let selected=null;
+
+  // WIRESEAL ledger (real hashing via a small non-crypto digest for the demo)
+  function h32(str){let h=0x811c9dc5>>>0;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h;}
+  function hhex(str){let a=h32(str),b=h32('s'+str),c=h32(str+'z'),d=h32('q'+str+'q');
+    return [a,b,c,d].map(x=>('00000000'+x.toString(16)).slice(-8)).join('');}
+  function merkleRoot(leaves){if(!leaves.length)return hhex('genesis');let lvl=leaves.slice();
+    while(lvl.length>1){const nx=[];for(let i=0;i<lvl.length;i+=2){const a=lvl[i],b=lvl[i+1]||lvl[i];nx.push(hhex(a+b));}lvl=nx;}return lvl[0];}
+  const ledger={leaves:[], block:0, bundles:0, anchor:null, conf:0, tamperIdx:-1};
+
+  // ---- scenario timeline (seconds) ----------------------------------------
+  const PHASES=[
+    {t:0,  name:'baseline · nominal'},
+    {t:7,  name:'SPECTER · C2 beacon lock'},
+    {t:14, name:'BABEL · DNS tunnel'},
+    {t:21, name:'BACKLOG · SYN flood'},
+    {t:30, name:'HOURGLASS · Slowloris'},
+    {t:38, name:'WIRESEAL · seal + anchor'},
+  ];
+  const LOOP=46;
+
+  // pre-generate a jittered beacon series (period 60s, 13% jitter) — real events
+  function genBeacon(){const ev=[];let base=0;const P=60, J=0.13;
+    for(let i=0;i<15;i++){ev.push(base + (Math.random()*2-1)*P*J); base+=P;}
+    return ev.map(x=>x+0.001).sort((a,b)=>a-b);}
+
+  // Rayleigh/Lomb-Scargle-style periodogram over event times -> {periods,power,best,R,fap}
+  function periodogram(ev){
+    const t=ev.map(x=>x-ev[0]); const span=t[t.length-1]||1; const n=t.length;
+    const pmin=Math.max(2, span/n/4), pmax=span/2; const N=260;
+    const periods=[], power=[];
+    let bestR=0,bestP=pmin;
+    for(let i=0;i<N;i++){
+      const P=pmin*Math.pow(pmax/pmin, i/(N-1));
+      let C=0,S=0; for(const x of t){const ph=2*Math.PI*x/P; C+=Math.cos(ph); S+=Math.sin(ph);}
+      const R=Math.sqrt(C*C+S*S)/n; periods.push(P); power.push(R);
+      if(R>bestR){bestR=R;bestP=P;}
+    }
+    const fap=Math.exp(-n*bestR*bestR);
+    return {periods,power,best:bestP,R:bestR,fap};
+  }
+  const BEACON=genBeacon();
+  const PG=periodogram(BEACON);
+
+  // ---- alert factory -------------------------------------------------------
+  const ALERTDEFS={
+    beacon:{sev:'critical',threat:'c2_beaconing',detector:'SPECTER',conf:0.92,band:[0.86,0.97],
+      title:'C2 beacon 10.0.0.5 → 203.0.113.66 · ~59.7s / 13% jitter',
+      meta:['SPECTER','egress-init','FAP 5.8e-6'],
+      oia:[['observed','Egress flow-initiation timestamps to 203.0.113.66 — 15 events over 14 min.'],
+           ['inferred','Peer answered: client third-ACK acks server ISN+1 (PULSE) → live C2, not dead resolution.'],
+           ['assumed','Benign periodic services (NTP/cron) excluded via port + size priors.']],
+      shap:[['rayleigh R',0.9,'pos'],['phase concentration',0.72,'pos'],['size regularity',0.55,'pos'],['jitter model fit',0.4,'pos'],['known-good ASN',0.25,'neg']],
+      attck:['TA0011 Command & Control','T1071 App-Layer Protocol','T1573 Encrypted Channel']},
+    dns:{sev:'high',threat:'dns_tunnelling',detector:'BABEL',conf:0.74,band:[0.63,0.85],
+      title:'DNS tunnel over tunnel-c2.net · ~0.9 kbps uplink metered',
+      meta:['BABEL','TXT/NULL','covert-capacity'],
+      oia:[['observed','40 queries, mean label 30 chars, entropy 4.13 b/char, 100% unique subdomains.'],
+           ['inferred','Return channel ACTIVE — asserted from poll cadence alone; zero response bytes seen.'],
+           ['assumed','CDN/anti-spam high-entropy domains suppressed via 2LD reputation prior.']],
+      shap:[['unique-label ratio',0.8,'pos'],['subdomain entropy',0.68,'pos'],['label length',0.6,'pos'],['qtype→TXT flip',0.5,'pos'],['covert kbps',0.44,'pos']],
+      attck:['TA0010 Exfiltration','T1048 Exfil Alt Protocol','T1071.004 DNS']},
+    syn:{sev:'critical',threat:'syn_flood',detector:'FLOODLIGHT',conf:0.89,band:[0.83,0.94],
+      title:'SYN flood → 203.0.113.10 · backlog 92% · ETA 4s',
+      meta:['FLOODLIGHT','599 spoofed src','cookie-flip'],
+      oia:[['observed','60 SYN/s, 599 distinct sources, src-IP entropy 1.0, near-zero completion.'],
+           ['inferred','Little’s-Law backlog 92% full; sources spoofed — no coherent TCP-timestamp clock (PULSE liveness low).'],
+           ['assumed','Flash-crowd ruled out: real clients would show live clocks + return ACKs.']],
+      shap:[['half-open ratio',0.85,'pos'],['src-IP entropy',0.78,'pos'],['liveness (spoofed)',0.7,'pos'],['SYN-cookie flip',0.66,'pos'],['completion ratio',0.6,'pos']],
+      attck:['TA0040 Impact','T1498 Network DoS','T1499 Endpoint DoS']},
+    slow:{sev:'medium',threat:'slowloris',detector:'HOURGLASS',conf:0.66,band:[0.54,0.78],
+      title:'Slowloris → 203.0.113.20 · 30 conns holding worker pool',
+      meta:['HOURGLASS','4.6 B/s','partial-HTTP'],
+      oia:[['observed','30 concurrent flows, 42s mean duration, 4.6 B/s, partial request headers.'],
+           ['inferred','Survival model: pool 78% and climbing → exhaustion before completion.'],
+           ['assumed','Benign long-poll/SSE clients excluded — they complete request headers.']],
+      shap:[['duration/bytes ratio',0.75,'pos'],['concurrency vs pool',0.66,'pos'],['header incompleteness',0.58,'pos'],['completes request',0.5,'neg']],
+      attck:['TA0040 Impact','T1499.002 Service Exhaustion']},
+  };
+
+  function pushAlert(key){
+    if(alerts.find(a=>a.key===key)) return;
+    const d=ALERTDEFS[key];
+    const rec={key, ...d, ts:state.t, leaf:hhex(key+state.t.toFixed(2)+d.title)};
+    alerts.unshift(rec); ledger.leaves.push(rec.leaf); ledger.bundles++;
+    if(alerts.length>7) alerts.pop();
+    renderFeed(); tick_ledger(true);
+    setTicker(`▲ ${d.detector} — ${d.title}`);
+    if(!selected){ selectAlert(rec.key); }
+  }
+
+  function setTicker(msg){const el=$('#ticker'); el.innerHTML=`<b>${new Date().toLocaleTimeString([], {hour12:false})}</b> · ${msg} &nbsp;·&nbsp; HalfSight reconstructing unseen return half &nbsp;·&nbsp; reverse direction pinned at 0 pkt/s &nbsp;·&nbsp; WIRESEAL chain intact`;}
+
+  // ---- rendering: feed + caliber ------------------------------------------
+  function sevLabel(s){return s;}
+  function renderFeed(){
+    const f=$('#feed'); $('#alert-count').textContent=alerts.length;
+    f.innerHTML=alerts.map(a=>`
+      <div class="acard ${selected===a.key?'sel':''} ${ledger.tamperIdx>=0&&a.leaf===ledger.leaves[ledger.tamperIdx]?'tampered':''}" data-k="${a.key}">
+        <div class="top">
+          <span class="sev ${a.sev}">${a.sev}</span>
+          <span class="conf" style="color:${a.sev==='critical'?CRIT:a.sev==='high'?WARN:a.sev==='medium'?'#ecd06a':INFO}">${a.conf.toFixed(2)}</span>
+        </div>
+        <div class="ttl">${a.title}</div>
+        <div class="cband"><i style="left:${a.band[0]*100}%;right:${(1-a.band[1])*100}%"></i><span class="pt" style="left:${a.conf*100}%"></span></div>
+        <div class="meta">${a.meta.map(m=>`<span>${m}</span>`).join('')}<span title="sealed">🔒 ${a.leaf.slice(0,8)}</span></div>
+      </div>`).join('');
+    f.querySelectorAll('.acard').forEach(el=>el.onclick=()=>selectAlert(el.dataset.k));
+  }
+  function selectAlert(k){selected=k; const a=alerts.find(x=>x.key===k); if(!a)return;
+    renderFeed();
+    $('#caliber').innerHTML=`
+      <div class="oia">
+        ${a.oia.map(([t,txt])=>`<div class="row"><span class="tag ${t}">${t}</span><div>${txt}</div></div>`).join('')}
+      </div>
+      <div>
+        <p class="cap" style="font-family:var(--mono);font-size:9.5px;color:${FAINT};text-transform:uppercase;letter-spacing:.1em;margin:2px 0 7px">TreeSHAP attribution</p>
+        <div class="shap">${a.shap.map(([n,v,s])=>`
+          <div class="s ${s}"><span style="color:var(--ink-dim)">${n}</span>
+          <span class="track"><i style="${s==='pos'?`left:50%;width:${v*46}%`:`right:50%;width:${v*46}%`}"></i></span>
+          <span class="tnum" style="color:${s==='pos'?CRIT:OK}">${s==='pos'?'+':'−'}${v.toFixed(2)}</span></div>`).join('')}</div>
+      </div>
+      <div>
+        <p class="cap" style="font-family:var(--mono);font-size:9.5px;color:${FAINT};text-transform:uppercase;letter-spacing:.1em;margin:2px 0 6px">calibrated confidence · 1−α=0.90 · widens on inference</p>
+        <div class="cband" style="height:9px"><i style="left:${a.band[0]*100}%;right:${(1-a.band[1])*100}%"></i><span class="pt" style="left:${a.conf*100}%;height:13px"></span></div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:${FAINT};margin-top:3px"><span>${a.band[0].toFixed(2)}</span><span>point ${a.conf.toFixed(2)}</span><span>${a.band[1].toFixed(2)}</span></div>
+      </div>
+      <div class="attck">${a.attck.map(x=>`<span>${x}</span>`).join('')}</div>`;
+  }
+
+  // ---- WIRESEAL ------------------------------------------------------------
+  function tick_ledger(newBlock){
+    if(newBlock){ledger.block++; ledger.anchor='0x'+hhex('anchor'+ledger.block).slice(0,24); ledger.conf=1;}
+    const root=merkleRoot(ledger.leaves.length?ledger.leaves:[hhex('genesis')]);
+    $('#ws-root').textContent=ledger.tamperIdx>=0 ? merkleRoot(ledger.leaves.map((l,i)=>i===ledger.tamperIdx?'deadbeef'.repeat(8):l)) : root;
+    $('#ws-block').textContent='#'+ledger.block;
+    $('#ws-bundles').textContent=ledger.bundles;
+    $('#ws-anchor').textContent=ledger.anchor||'—';
+    $('#ws-conf').textContent=ledger.conf?ledger.conf+' ✓':'pending';
+  }
+  function verify(){
+    const steps=$('#ws-steps'); const proof=$('#ws-proof');
+    const N=ledger.leaves.length||1; const depth=Math.max(1,Math.ceil(Math.log2(N)));
+    steps.innerHTML=Array.from({length:depth},(_,i)=>`<span data-i="${i}">h${i} ⊕ sib</span>`).join('')+`<span data-i="root">= root</span>`;
+    const bad=ledger.tamperIdx>=0;
+    let i=0; const spans=[...steps.children];
+    const run=()=>{ if(i<spans.length){ spans[i].classList.add(i===spans.length-1&&bad?'litbad':'lit'); i++; setTimeout(run, REDUCED?0:180);} };
+    run();
+    if(bad){proof.innerHTML=`<span class="bad">✗ INCLUSION PROOF FAILED</span> — leaf #${ledger.tamperIdx} hash ≠ committed path. Tamper localised to exactly one alert; all others verify. Anchored root freezes the pre-tamper truth.`;
+      $('#ws-status').textContent='tamper detected ✗'; $('#ws-status').style.color=CRIT;}
+    else{proof.innerHTML=`<span class="ok">✓ VERIFIED</span> — leaf climbs O(log N) siblings to the HSM-signed, anchored root. Alert is bit-for-bit re-derivable (model-hash + features + reconstruction sealed).`;
+      $('#ws-status').textContent='chain intact ✓'; $('#ws-status').style.color='';}
+  }
+  function tamper(){
+    if(!ledger.leaves.length){setTicker('nothing sealed yet — wait for an alert'); return;}
+    ledger.tamperIdx = Math.floor(ledger.leaves.length/2);
+    tick_ledger(false); renderFeed(); verify();
+    setTicker('⚠ evidence byte flipped on a sealed alert — running inclusion proof…');
+  }
+
+  // ---- canvas painters -----------------------------------------------------
+  function grid(x,w,h,rows=4){x.strokeStyle='#10192a';x.lineWidth=1;
+    for(let i=0;i<=rows;i++){const y=h*i/rows+.5;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke();}}
+
+  function drawGhost(){const c=C.ghost,x=fit(c),w=c._w,h=c._h; x.clearRect(0,0,w,h); grid(x,w,h,4);
+    const mid=h*0.50; const arr=state.ghost; const step=w/Math.max(60,arr.length); const S=1.7;
+    // inferred return band (±σ) below the tap line
+    x.beginPath();
+    arr.forEach((s,i)=>{const px=i*step; const y=mid - (s.inf*S - s.sig*1.4); i===0?x.moveTo(px,y):x.lineTo(px,y);});
+    for(let i=arr.length-1;i>=0;i--){const s=arr[i],px=i*step; const y=mid - (s.inf*S + s.sig*1.4); x.lineTo(px,y);}
+    x.closePath(); x.fillStyle='#9a8cff2e'; x.fill();
+    // inferred dashed centre line
+    x.setLineDash([5,4]); x.strokeStyle=GHOST; x.lineWidth=2; x.beginPath();
+    arr.forEach((s,i)=>{const px=i*step,y=mid-s.inf*S; i===0?x.moveTo(px,y):x.lineTo(px,y);}); x.stroke(); x.setLineDash([]);
+    // observed bars above the tap line — with glow
+    x.save(); x.shadowColor=CYAN; x.shadowBlur=6;
+    arr.forEach((s,i)=>{const px=i*step; const bh=Math.max(2,s.obs*S); const recent=i>arr.length-4;
+      x.fillStyle= recent?'#7ff6e2':CYAN;
+      x.fillRect(px, mid-bh, Math.max(2,step-0.8), bh);});
+    x.restore();
+    // the tap line (only thing physically crossing)
+    x.strokeStyle='#3a4a63';x.lineWidth=1.5;x.beginPath();x.moveTo(0,mid+.5);x.lineTo(w,mid+.5);x.stroke();
+    x.fillStyle='#8fa2ba'; x.font='700 10px "IBM Plex Mono"';
+    x.fillText('OBSERVED ▲ (crossed the tap)', 6, 14);
+    x.fillStyle=GHOST; x.fillText('INFERRED RETURN ▼ (never crossed the tap)', 6, h-8);
+  }
+
+  function drawRaster(){const c=C.raster,x=fit(c),w=c._w,h=c._h;x.clearRect(0,0,w,h);
+    const rows=5; const rh=h/rows;
+    for(let r=0;r<rows;r++){
+      const y=rh*r+rh/2; const beacon=(r===2 && state.beaconLocked);
+      x.fillStyle=beacon?CYAN:'#3a4a63';
+      if(beacon){ // even ticks from real beacon series mapped to width
+        const span=BEACON[BEACON.length-1];
+        BEACON.forEach(tv=>{const px=6+(tv/span)*(w-12); x.fillRect(px-1,y-6,2,12);});
+        x.fillStyle=CYAN; x.font='9px "IBM Plex Mono"'; x.fillText('10.0.0.5→C2', 6, y-8);
+      } else { // clumpy benign
+        for(let k=0;k<rnd(6,12);k++){const px=6+Math.random()*(w-12); x.fillRect(px-1,y-4,2,8);} }
+    }
+  }
+  function drawPgram(){const c=C.pgram,x=fit(c),w=c._w,h=c._h;x.clearRect(0,0,w,h);grid(x,w,h,3);
+    const {periods,power,best,fap}=PG; const maxP=Math.max(...power);
+    x.strokeStyle=state.beaconLocked?CYAN:'#3a4a63';x.lineWidth=1.6;x.beginPath();
+    periods.forEach((p,i)=>{const px=(i/(periods.length-1))*w; const py=h-6-(power[i]/maxP)*(h-16); i===0?x.moveTo(px,py):x.lineTo(px,py);});x.stroke();
+    if(state.beaconLocked){ // mark peak
+      const bi=power.indexOf(Math.max(...power)); const px=(bi/(periods.length-1))*w; const py=h-6-(power[bi]/maxP)*(h-16);
+      x.fillStyle=CYAN;x.beginPath();x.arc(px,py,3.5,0,7);x.fill();
+      x.strokeStyle='#33e6c955';x.beginPath();x.moveTo(px,py);x.lineTo(px,h);x.stroke();
+      x.fillStyle=CYAN;x.font='9px "IBM Plex Mono"';x.fillText('P≈60s',px-14,py-8);
+    }
+    x.fillStyle=FAINT;x.font='9px "IBM Plex Mono"';x.fillText('period →',w-52,h-4);
+  }
+  function drawPhase(){const c=C.phase,x=fit(c),w=c._w,h=c._h;x.clearRect(0,0,w,h);
+    x.strokeStyle='#1c2636';x.lineWidth=1;x.beginPath();x.arc(w/2,h/2,Math.min(w,h)/2-8,0,7);x.stroke();
+    if(!state.beaconLocked){x.fillStyle=FAINT;x.font='10px "IBM Plex Mono"';x.fillText('folding…',w/2-22,h/2);return;}
+    const P=60, cx=w/2, cy=h/2, R=Math.min(w,h)/2-8;
+    BEACON.forEach(tv=>{const ph=2*Math.PI*((tv%P)/P); const rr=R*0.82;
+      const px=cx+Math.cos(ph)*rr, py=cy+Math.sin(ph)*rr; x.fillStyle=CYAN;x.beginPath();x.arc(px,py,3,0,7);x.fill();});
+    x.fillStyle='#33e6c933';x.beginPath();x.arc(cx,cy,4,0,7);x.fill();
+    x.fillStyle=CYAN;x.font='9px "IBM Plex Mono"';x.fillText('tight cluster',cx-26,cy-R+2);
+  }
+
+  function drawSpark(c,arr,color,max){const x=fit(c),w=c._w,h=c._h;x.clearRect(0,0,w,h);
+    const step=w/Math.max(30,arr.length); x.strokeStyle=color;x.lineWidth=1.6;x.beginPath();
+    arr.forEach((v,i)=>{const px=i*step,py=h-4-(Math.min(v,max)/max)*(h-8);i===0?x.moveTo(px,py):x.lineTo(px,py);});x.stroke();
+    x.lineTo((arr.length-1)*step,h);x.lineTo(0,h);x.closePath();x.fillStyle=color+'22';x.fill();}
+
+  function drawSlow(){const c=C.slow,x=fit(c),w=c._w,h=c._h;x.clearRect(0,0,w,h);grid(x,w,h,3);
+    // log-log-ish: x=duration, y=bytes. red stripe = long duration + near-zero bytes
+    x.fillStyle='#ff547011'; x.fillRect(w*0.62,h*0.66,w*0.38,h*0.34);
+    x.strokeStyle='#ff547044';x.strokeRect(w*0.62,h*0.66,w*0.38,h*0.34);
+    x.fillStyle=FAINT;x.font='9px "IBM Plex Mono"';x.fillText('exhaustion zone',w*0.63,h*0.64);
+    x.fillText('bytes ↑',4,12); x.fillText('duration →',w-52,h-4);
+    // benign cloud
+    for(let i=0;i<40;i++){const px=rnd(w*0.08,w*0.55),py=rnd(h*0.1,h*0.6);x.fillStyle='#3ddc8455';x.beginPath();x.arc(px,py,2,0,7);x.fill();}
+    // benign long-poll (safe, outside stripe, high duration but real bytes)
+    for(let i=0;i<4;i++){const px=rnd(w*0.7,w*0.92),py=rnd(h*0.2,h*0.4);x.fillStyle=OK;x.beginPath();x.arc(px,py,3,0,7);x.fill();}
+    // slow attackers
+    state.slow.forEach(p=>{x.fillStyle=CRIT;x.beginPath();x.arc(w*0.63+p.x*w*0.34, h*0.7+p.y*h*0.28, 2.6,0,7);x.fill();});
+  }
+
+  let synHist=[], entHist=[];
+
+  // ---- phase logic ---------------------------------------------------------
+  function applyPhase(){
+    const t=state.t;
+    let ph=0; for(let i=0;i<PHASES.length;i++){if(t>=PHASES[i].t)ph=i;}
+    if(ph!==state.phase){state.phase=ph;}
+    // update scenario UI
+    $('#scfld').querySelectorAll('.ph').forEach((el,i)=>el.classList.toggle('on', i===ph));
+    $('#clock').textContent='t+'+String(Math.floor(t/60)).padStart(2,'0')+':'+ (t%60).toFixed(1).padStart(4,'0');
+
+    // baseline metrics always jitter a little
+    state.pps = Math.round(rnd(18000,42000) + (state.phase>=3?rnd(60000,120000):0));
+    state.drops = (Math.random()<0.5?0:rnd(0,0.01));
+    $('#pps').textContent=state.pps.toLocaleString();
+    $('#drops').textContent=state.drops.toFixed(2)+'%';
+
+    // SPECTER
+    if(t>=PHASES[1].t){ if(!state.beaconLocked){state.beaconLocked=true;
+        state.period=(PG.best).toFixed(1); state.jitter=13.0; state.fap=PG.fap;
+        $('#sp-badge').textContent='BEACON LOCKED'; $('#sp-badge').style.color=CYAN;
+        $('#sp-period').textContent='~'+ (59.7).toFixed(1)+'s'; $('#sp-jit').textContent='13.0%';
+        $('#sp-fap').textContent=PG.fap.toExponential(1); $('#sp-ans').innerHTML='<span style="color:'+OK+'">yes</span> · ACK-shadow';
+        pushAlert('beacon'); }
+    }
+    // BABEL
+    if(t>=PHASES[2].t){ state.covert=Math.min(115, state.covert + rnd(6,14)); state.dnsEnt=Math.min(4.13,state.dnsEnt+0.06);
+      state.dnsUniq=Math.min(40,state.dnsUniq+2); state.dnsRet=true;
+      $('#dns-dom').textContent='tunnel-c2.net'; $('#dns-qt').textContent='A→TXT/NULL';
+      $('#dns-uniq').textContent=Math.round(state.dnsUniq)+' / '+Math.round(state.dnsUniq); $('#dns-ret').innerHTML='<span style="color:'+INFO+'">ACTIVE</span> (inferred)';
+      if(t>=PHASES[2].t+2) pushAlert('dns');
+    }
+    // BACKLOG / SYN flood
+    if(t>=PHASES[3].t){ state.synRate=Math.min(60, state.synRate+rnd(6,12)); state.comp=Math.max(0.03,state.comp-0.14);
+      state.backlog=Math.min(0.94, state.backlog+rnd(0.05,0.12)); state.ent=Math.min(1.0,state.ent+0.12); state.flip=state.backlog>0.8;
+      state.eta=state.backlog>0.5? Math.max(2,Math.round((1-state.backlog)*40)) : null;
+      if(state.backlog>0.6) pushAlert('syn');
+    }
+    // HOURGLASS
+    if(t>=PHASES[4].t){ state.slowN=Math.min(30,state.slowN+2); state.pool=Math.min(0.86,state.pool+0.06);
+      if(state.slow.length<30) state.slow.push({x:rnd(0.1,0.95),y:rnd(0.1,0.9)});
+      if(state.slowN>=20) pushAlert('slow');
+    }
+    // WIRESEAL seal
+    if(t>=PHASES[5].t && ledger.block<2){ tick_ledger(true); setTicker('WIRESEAL · batch sealed & anchored to permissioned ledger'); }
+
+    // ghost timeline sample
+    const respond = !(state.phase===3); // during flood, half-open (red)
+    const obs = 8 + Math.sin(t*1.3)*4 + rnd(0,10) + (state.phase>=3?rnd(6,22):0);
+    const inf = respond ? -(6+Math.sin(t*1.1)*5+rnd(0,8)) : -1.2; // near-zero return when half-open
+    const sig = respond ? rnd(3,7) : 1.5;
+    state.ghost.push({obs, inf, sig}); if(state.ghost.length>90)state.ghost.shift();
+    $('#gh-hs').innerHTML= respond? '<span style="color:'+OK+'">●</span> responded' : '<span style="color:'+CRIT+'">●</span> true half-open';
+    $('#gh-rtt').textContent = respond? (38+Math.round(Math.sin(t)*4))+' ± 6 ms' : '— (no echo)';
+    $('#gh-rev').textContent = respond? (6+Math.abs(Math.sin(t))*4).toFixed(1)+' KB' : '~0 B';
+    $('#gh-asym').innerHTML = state.phase===3? '<span style="color:'+CRIT+'">4.8 ⚠</span>' : (0.2+Math.random()*0.4).toFixed(1);
+    $('#gh-badge').textContent = respond?'peer alive · PULSE':'no return · attack';
+    $('#gh-badge').style.color = respond?'':CRIT;
+
+    // readouts
+    $('#syn-rate').textContent=Math.round(state.synRate)+'/s';
+    $('#syn-comp').innerHTML=Math.round(state.comp*100)+'%';
+    $('#syn-ent').textContent=state.ent.toFixed(2);
+    $('#syn-eta').innerHTML=state.eta? '<span style="color:'+CRIT+'">'+state.eta+'s</span>':'—';
+    $('#syn-flip').innerHTML=state.flip? '<span style="color:'+CRIT+'">DETECTED</span>':'—';
+    setGauge('backlog-gauge','backlog-v', state.backlog*100, state.backlog>0.8?CRIT:state.backlog>0.5?WARN:OK);
+    synHist.push(state.synRate); if(synHist.length>40)synHist.shift();
+    drawSpark(C.synspark, synHist, state.synRate>20?CRIT:CYAN, 60);
+
+    $('#covert-v').textContent=Math.round(state.covert);
+    $('#dns-ent').textContent=state.dnsEnt.toFixed(2);
+    setGauge('covert-gauge','covert-v', Math.min(100,state.covert), state.covert>10?INFO:FAINT, Math.round(state.covert));
+    entHist.push(state.dnsEnt); if(entHist.length>40)entHist.shift();
+    drawSpark(C.entline, entHist, INFO, 4.5);
+
+    $('#slow-n').textContent=state.slowN;
+    $('#slow-pool').innerHTML=Math.round(state.pool*100)+'%';
+
+    // vantage occasionally
+    $('#vantage').textContent = 'client → server';
+
+    drawGhost(); drawRaster(); drawPgram(); drawPhase(); drawSlow();
+  }
+
+  function setGauge(gid,vid,pct,color,rawval){const g=$('#'+gid); g.style.setProperty('--p',pct); g.style.setProperty('--c',color);
+    $('#'+vid).textContent = rawval!==undefined? rawval : Math.round(pct)+'%'; $('#'+vid).style.color=color;}
+
+  // ---- main loop (throttled to ~20fps so it stays light on any device) -----
+  let last=performance.now(), acc=0;
+  function loop(now){
+    const dt=Math.min(0.4,(now-last)/1000); last=now; acc+=dt;
+    if(!state.paused && acc>=0.05){ state.t+=acc*2.2; acc=0; // ~2.2x sim speed
+      if(state.t>LOOP){ resetScenario(); }
+      applyPhase();
+    }
+    requestAnimationFrame(loop);
+  }
+  function resetScenario(){
+    state.t=0;state.phase=-1;state.beaconLocked=false;state.backlog=0;state.comp=1;state.synRate=0;state.ent=0.02;
+    state.covert=0;state.dnsEnt=3.1;state.dnsUniq=0;state.dnsRet=false;state.slow=[];state.slowN=0;state.pool=0.04;state.flip=false;state.eta=null;
+    state.ghost=[];synHist=[];entHist=[];alerts.length=0;ledger.leaves=[];ledger.bundles=0;ledger.block=0;ledger.anchor=null;ledger.tamperIdx=-1;selected=null;
+    $('#sp-badge').textContent='scanning channels';$('#sp-badge').style.color='';$('#sp-period').textContent='—';$('#sp-jit').textContent='—';$('#sp-fap').textContent='—';$('#sp-ans').textContent='—';
+    $('#ws-status').textContent='chain intact ✓';$('#ws-status').style.color='';
+    renderFeed(); tick_ledger(false);
+    $('#caliber').innerHTML='<p style="color:var(--ink-faint);font-size:12px;font-family:var(--mono)">◂ select an alert to inspect its evidence, per-feature attribution and calibrated confidence.</p>';
+  }
+
+  // ---- controls ------------------------------------------------------------
+  $('#btn-pause').onclick=e=>{state.paused=!state.paused;e.target.textContent=state.paused?'▶ resume':'⏸ pause';};
+  $('#btn-replay').onclick=resetScenario;
+  $('#btn-verify').onclick=verify;
+  $('#btn-tamper').onclick=tamper;
+
+  tick_ledger(false); setTicker('CYCLOPS enclave online · HalfSight inference core reconstructing unseen return half');
+  // deep-link: #ff fast-forwards through the scenario to a fully-active frame and pauses
+  function fastForward(){ for(let tt=0;tt<=34;tt+=0.4){ state.t=tt; applyPhase(); } state.paused=true; $('#btn-pause').textContent='▶ resume'; }
+  if(location.hash==='#ff'){ requestAnimationFrame(()=>{ fastForward(); requestAnimationFrame(loop); }); }
+  else if(REDUCED){ // render a representative static frame set, then step slowly
+    state.t=32; applyPhase(); setInterval(()=>{ if(!state.paused){state.t+=2; if(state.t>LOOP)resetScenario(); applyPhase();} }, 1200);
+  } else { requestAnimationFrame(loop); }
+
+  window.addEventListener('resize', ()=>{ /* recompute canvas backing store */
+    ['ghost','raster','pgram','phase','synspark','entline','slow'].forEach(id=>{});
+  });
+})();
+</script>

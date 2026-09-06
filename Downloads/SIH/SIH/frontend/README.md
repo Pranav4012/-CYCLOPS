@@ -12,6 +12,7 @@ The console consumes the real Person 2 backend. It does not use scripted alert d
 - Detector alerts from `GET /api/alerts`.
 - WIRESEAL records from `GET /api/evidence`.
 - Live evidence status from `/api/evidence/{id}/verify` data.
+- Team integration status from `GET /api/integrations`.
 - PCAP upload through `POST /api/pcap/upload`.
 - Live refresh through `WS /api/live` events.
 

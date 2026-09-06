@@ -18,6 +18,7 @@ API documentation is available at `http://localhost:8000/docs`.
 ## Endpoints
 
 - `GET /api/status`
+- `GET /api/integrations` reports the exact teammate snapshots and active adapters
 - `GET /api/alerts` and `GET /api/alerts/{id}`
 - `GET /api/flows` and `GET /api/flows/{id}`
 - `GET /api/evidence` and `GET /api/evidence/{id}`
