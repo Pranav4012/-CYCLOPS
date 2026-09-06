@@ -36,7 +36,6 @@ halfsight/
 │   └── ledger.py            # WIRESEAL — Merkle tree + hash-chained, signed evidence ledger
 ├── caliber.py               # CALIBER — split-conformal calibrator (coverage guarantee)
 ├── pcap.py                  # REAL pcap read/write (Ethernet/IP/TCP/UDP/DNS/partial-HTTP)
-├── replay.py                # Accelerated live-style PCAP replay; preserves Packet.ts
 ├── ingest.py                # CLI: run the pipeline on a real .pcap  (python3 -m halfsight.ingest)
 ├── dga_families.py          # published DGA algorithms + real benign top-domains list
 ├── dga_model.py             # trained char-n-gram MLP (BABEL's DGA brain) — numpy only
@@ -83,8 +82,19 @@ Measures (never asserts) the claims on labeled, ground-truth, one-directional tr
 4. **Jitter** — SPECTER beacon detection vs jitter at two observation depths, plus the Poisson false-positive rate.
 5. **Spoof vs flash-crowd** — separation from inbound-only data via PULSE liveness.
 6. **Custody** — WIRESEAL tamper-localisation accuracy.
+7. **DGA (real data)** — trained-model AUC / F1 / per-family recall (from `train_dga`), incl. a precision-recall curve + average-precision (0.955).
+8. **Graceful degradation** — encrypted-transport capability matrix: DoH blinds lexical DGA/tunnel (beacon timing survives 100%); QUIC degrades GHOSTFLOW to the prior (beacon timing survives).
 
 Headline (30 trials/class): macro **F1 0.967**, overt recall **100%** / stealth **90%**, **0%** benign false-alarm, reconstruction **±4.3%** median, conformal coverage **0.90 → 0.90**, Poisson beacon FP **0%**, tamper localisation **100%**, trained DGA model **AUC 0.970** / F1 0.90.
+
+## Tests & CI
+
+```bash
+pip install pytest
+python3 -m pytest -q        # 30 tests, ~0.5s
+```
+
+`tests/` covers flow assembly + GHOSTFLOW (incl. 32-bit ACK/TSval **wrap** and PAWS), SPECTER (incl. the **Poisson false-positive guard**), the DGA model + heuristic fallback, DNS tunnel, every flood/reflection type, CALIBER coverage, the WIRESEAL ledger + tamper detection + inclusion proofs, pcap read/write **round-trip**, and the end-to-end pipeline (one-shot + streaming). `.github/workflows/ci.yml` runs the tests plus a synthetic eval and a **regression gate** (`eval/ci_gate.py`) that fails the build if macro F1, the false-alarm rate, or the DGA AUC drop — so any engine change that would regress the top-tier numbers is caught automatically.
 
 ## Validated on REAL attack captures — 8/8
 
@@ -109,14 +119,13 @@ python3 -m eval.train_dga           # ~2 min → halfsight/dga_model.npz + resul
 ```bash
 python3 -m eval.make_pcaps                     # write labeled real pcaps to pcaps/
 python3 -m halfsight.ingest pcaps/mixed.pcap   # run the pipeline on a real capture
+python3 -m halfsight.ingest big.pcap --stream  # bounded-memory streaming (tumbling windows) for huge captures
 python3 -m halfsight.ingest any.pcap --json out.json
-python3 -m halfsight.replay pcaps/mixed.pcap --speed 10
-python3 -m halfsight.replay pcaps/mixed.pcap --no-delay
 ```
 
-`pcap.py` parses real link-layer bytes (Ethernet / raw-IP / Linux-cooked, IPv4, TCP/UDP, the TCP timestamp option, DNS questions, partial-HTTP) into `Packet` objects — pure standard library, with `dpkt`/`scapy` used automatically if present for pcapng or exotic link types. `write_pcap` emits Wireshark-openable classic pcaps, so labeled lab traffic round-trips through the exact ingestion path a diode deployment would use. Point `ingest` at your own tap dump or a public sample capture.
+`--stream` processes the capture in `window_s`-second tumbling windows (only one window of flows in memory at a time) into a single hash-chained ledger, with a lightweight global per-channel timestamp pass so long-period beacons split across windows are still caught. GHOSTFLOW handles 32-bit ACK/TSval wraparound (RFC 1982 serial arithmetic + PAWS-style old-segment filtering), so reconstruction stays exact on long, high-volume flows.
 
-`replay.py` emits packets using the original capture timestamps while sleeping between packets according to the selected speed multiplier. This provides live-style replay for demos and pipeline consumers without changing the timestamps used by the detectors. `TrafficProfiler` reports packet/byte totals, TCP/UDP/DNS counts, unique IPs, protocol distribution, capture rates, one-second rate buckets, and decoded-input quality. `PcapReplay.pause()`, `.resume()`, and `.stop()` provide lifecycle control, while `progress_callback` exposes packet count, capture time, elapsed time, and completion fraction. Use `replay_pcap(path, consumer, speed=10)` to feed a callback, or use the CLI for a monitor summary.
+`pcap.py` parses real link-layer bytes (Ethernet / raw-IP / Linux-cooked, IPv4, TCP/UDP, the TCP timestamp option, DNS questions, partial-HTTP) into `Packet` objects — pure standard library, with `dpkt`/`scapy` used automatically if present for pcapng or exotic link types. `write_pcap` emits Wireshark-openable classic pcaps, so labeled lab traffic round-trips through the exact ingestion path a diode deployment would use. Point `ingest` at your own tap dump or a public sample capture.
 
 ## Using it programmatically on real traffic
 

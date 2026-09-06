@@ -27,14 +27,17 @@ SIH/
 ├── progress.md               # done / next / limitations / how-to-demo
 ├── handoff.md                # this file
 ├── .gitignore
+├── .github/workflows/ci.yml  # CI: pytest + synthetic eval + regression gate
 ├── product/                  # the 3 published HTML artifacts (self-contained)
 │   ├── cyclops-console.html  # LIVE SOC console (canvas sim + real in-page maths). ~950 lines.
 │   ├── cyclops-dossier.html  # editorial brief (thesis, 8 cores, arch, scope, roadmap)
 │   └── cyclops-eval.html     # measured evaluation report (charts from real metrics)
 └── reference-impl/           # the REAL, runnable engine + eval harness (numpy only)
     ├── requirements.txt       # numpy
+    ├── conftest.py            # puts reference-impl/ on sys.path for pytest
     ├── demo.py                # `python3 demo.py` — detects all 4 threats + tamper demo
     ├── README.md
+    ├── tests/                 # pytest suite (30 tests): types/halfflow/detectors/ledger/pcap/pipeline
     ├── halfsight/
     │   ├── __init__.py        # exports Packet, UniFlow, Alert, Pipeline, FlowTable
     │   ├── types.py           # Packet, UniFlow (a half-flow), Alert, shannon_entropy
@@ -59,7 +62,8 @@ SIH/
     │   ├── make_pcaps.py      # write labeled real .pcap files to pcaps/
     │   ├── train_dga.py       # train + eval the DGA model on the real 25-family dataset
     │   ├── validate_real.py   # run the pipeline on REAL downloaded attack captures (8/8)
-    │   ├── run_eval.py        # the harness (7 evals) → results/metrics.json
+    │   ├── ci_gate.py         # CI regression gate: fails if F1 / FPR / DGA-AUC drop
+    │   ├── run_eval.py        # the harness (8 evals) → results/metrics.json
     │   └── results/{metrics.json, dga_model_metrics.json, real_pcap_validation.json}
     ├── pcaps/                 # generated labeled .pcaps (gitignored; make_pcaps regenerates)
     │   └── real/              # REAL downloaded captures + fetch_real_captures.sh (gitignored)
@@ -72,9 +76,12 @@ SIH/
 cd reference-impl
 pip install -r requirements.txt        # numpy only
 python3 demo.py                        # end-to-end detection + tamper demo
-python3 -m eval.run_eval 30            # measured evaluation (7 evals) → eval/results/metrics.json
+pip install pytest && python3 -m pytest -q   # 30 unit tests (~0.5s)
+python3 -m eval.run_eval 30            # measured evaluation (8 evals) → eval/results/metrics.json
+python3 -m eval.ci_gate               # regression gate (fails if F1/FPR/AUC drop)
 python3 -m eval.make_pcaps             # write labeled real .pcap files to pcaps/
 python3 -m halfsight.ingest pcaps/mixed.pcap   # run the pipeline on a REAL pcap (or any capture)
+python3 -m halfsight.ingest big.pcap --stream  # bounded-memory streaming mode for very large captures
 ./datasets/fetch_datasets.sh           # (optional) pull the real DGA + benign corpora
 python3 -m eval.train_dga              # (optional) retrain the DGA model → halfsight/dga_model.npz
 ./pcaps/real/fetch_real_captures.sh    # (optional) pull REAL attack captures (public sources)
@@ -111,7 +118,9 @@ fast-forwards the simulation to a fully-active frame (used for screenshots).
 
 ## 6. Measured results (from `eval/results/metrics.json`, 30 trials/class)
 
-- Detection macro **F1 0.951**; overt recall **100%**, stealth **85%**; **0%** benign false-alarm (90 scenarios).
+- Detection macro **F1 0.967**; overt recall **100%**, stealth **90%**; **0%** benign false-alarm (90 scenarios).
+- **Graceful degradation (measured):** DoH blinds lexical DGA/tunnel but beacon-timing survives 100%; QUIC degrades GHOSTFLOW to the prior, beacon-timing survives. DGA PR curve + avg-precision 0.955 in `dga_model_metrics.json`.
+- **Hardening:** GHOSTFLOW handles 32-bit ACK/TSval wrap (serial arithmetic + unwrap + PAWS filter); `ingest --stream` gives bounded-memory chunked processing for very large captures.
 - Confusion is clean: errors are attack→benign misses only, **no wrong-class mis-attribution**.
 - GHOSTFLOW reconstruction **±4.3%** median error (p90 7.0%).
 - CALIBER conformal coverage **0.95/0.90/0.80 → 0.95/0.90/0.80** (tracks nominal).

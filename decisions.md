@@ -204,3 +204,35 @@ Keep this updated whenever an approach, name, threshold, or claim changes.
   script pulls every capture from its public source; the validator ingests each and
   writes `results/real_pcap_validation.json`. Captures are gitignored (binary,
   large); the scripts + cited sources make them one command away.
+
+## Roadmap Phase-1 hardening (post-validation)
+
+- **D38 — GHOSTFLOW/PULSE hardened for 32-bit wrap + PAWS.** `types.py` now tracks
+  ACK progression with RFC 1982 serial arithmetic and counts wraparounds
+  (`ack_wraps`), so a long/high-volume flow crossing 2^32 reconstructs exactly (test:
+  0.00% error across a wrap). `recover_ts_clock` unwraps the TSval series and applies
+  a **PAWS-style filter** that drops old/reordered TSvals before fitting the clock
+  (test: 1000 Hz recovered exactly across a TSval wrap). Documented that delayed-ACK /
+  Nagle coarsen the ACK cadence but not the cumulative total, so the estimate stays an
+  accurate lower bound. No eval regression (recon still ±4.3%).
+- **D39 — Streaming chunked ingest for very large captures.** `ingest.run_streaming`
+  (`--stream`) processes tumbling `window_s` windows — only one window of flows in
+  memory at a time — into one hash-chained ledger, deduping alerts across windows. A
+  tiny per-channel list of flow-start times is accumulated across the whole capture
+  (just timestamps, bounded) and SPECTER runs over it at the end, so **long-period
+  beacons split across windows are still caught**. Verified on real captures (dnscat2
+  → 8 windows, synflood → 3 windows @5s, Cobalt Strike beacon caught across 300s windows).
+- **D40 — Eval expansion: PR curve + graceful-degradation matrix.** `train_dga` now
+  emits a precision-recall curve + **average precision** for the DGA model.
+  `eval_degradation` measures the honest encrypted-transport matrix: **DoH** blinds
+  lexical DGA/tunnel (qnames encrypted) but beacon TIMING survives 100%; **QUIC**
+  removes ACK/timestamps so GHOSTFLOW degrades to the prior, but beacon timing
+  survives. This turns the dossier's "graceful degradation" claim into measured data.
+- **D41 — pytest suite + CI regression gate (the anti-regression guardrail).** 30
+  tests in `reference-impl/tests/` cover every module (incl. the wrap-hardening and
+  the Poisson-FP guard) and run in ~0.5s using the committed model + self-generated
+  pcaps (no downloads). `.github/workflows/ci.yml` runs pytest + a synthetic eval and
+  then `eval/ci_gate.py`, which **fails the build** if macro F1 < 0.90, false-alarm
+  rate > 0.05, or DGA AUC < 0.93 — so a teammate's engine change that regresses the
+  top-tier numbers is caught automatically. Floors sit below measured (0.967 / 0 /
+  0.970) with margin for normal variance.

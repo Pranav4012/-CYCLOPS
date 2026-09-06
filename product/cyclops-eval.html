@@ -217,10 +217,30 @@ footer{padding:34px 0 0;border-top:1px solid var(--line);margin-top:26px;color:v
           per-domain recall dips.</div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px">
-      <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">per-family recall @ 1% FPR</div>
-      <div id="dgabars"></div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">per-family recall @ 1% FPR</div>
+        <div id="dgabars"></div>
+      </div>
+      <div class="card">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">precision–recall curve · avg-precision <b id="ap" style="color:var(--cyan)"></b></div>
+        <canvas id="prcurve" height="220"></canvas>
+      </div>
     </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">07</span><h2>Graceful degradation under encrypted transport</h2></div>
+    <p class="lead" style="max-width:80ch">We're honest about where one-way visibility hits its limits — and measure it. When traffic is
+      encrypted the pipeline <b style="color:var(--ink)">degrades on purpose</b> rather than fabricating detections.</p>
+    <div class="tablewrap">
+      <table><thead><tr><th>Transport</th><th>Lexical DGA / tunnel</th><th>Beacon timing (SPECTER)</th><th>GHOSTFLOW recon</th></tr></thead>
+        <tbody id="degrrows"></tbody></table>
+    </div>
+    <div class="note">DoH (DNS-over-HTTPS) encrypts the qnames, so BABEL's lexical detectors go blind — but the beacon's
+      <em>timing</em> is still visible and SPECTER catches it. QUIC/HTTP-3 removes the TCP ACK/timestamp signals, so
+      GHOSTFLOW/PULSE fall back to the prior, yet beacon timing survives. Sampled sFlow (not shown) similarly disables
+      per-packet reconstruction while volumetric/entropy detectors keep working. Measured by <span class="mono">eval.run_eval</span> §8.</div>
   </section>
 
   <footer>
@@ -257,6 +277,9 @@ const M = {
   dgaReal:{auc:0.970, f1:0.902, recall05:0.935, recall1fpr:0.728, heuristic:0.545, families:25, test:40000,
     best:{ramdo:0.986,murofet:0.983,padcrypt:0.983,ranbyus:0.974,emotet:0.971},
     worst:{nymaim:0.101,suppobox:0.221,conficker:0.295,simda:0.389,vawtrak:0.482}},
+  avgPrecision:0.9552,
+  prCurve:[[1.0,0.5],[0.993,0.645],[0.987,0.697],[0.982,0.731],[0.977,0.755],[0.973,0.776],[0.968,0.794],[0.964,0.81],[0.958,0.822],[0.953,0.833],[0.949,0.845],[0.944,0.855],[0.939,0.866],[0.932,0.876],[0.927,0.885],[0.922,0.893],[0.916,0.902],[0.909,0.911],[0.902,0.918],[0.894,0.926],[0.884,0.935],[0.872,0.944],[0.856,0.953],[0.833,0.963],[0.793,0.975]],
+  degr:{cleartext:{dga:1.0,recon:"ack-derivative"},DoH:{dga:0.0,beacon:1.0,recon:"ack-derivative"},QUIC:{beacon:1.0,recon:"prior"}},
   cm:{ // true -> pred counts
     syn_flood:{syn_flood:30}, udp_flood:{udp_flood:30}, reflection_amplification:{reflection_amplification:30},
     slowloris:{slowloris:30}, dns_tunnelling:{dns_tunnelling:27,benign:3}, dga_domain:{dga_domain:30},
@@ -382,5 +405,37 @@ function fit(c,h){const dpr=Math.min(2,devicePixelRatio||1);const w=c.getBoundin
       <div style="flex:1;height:11px;border-radius:100px;background:#141d2c;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(v*100,1.5)}%;background:${c};border-radius:100px"></i></div>
       <span class="tnum" style="font-family:var(--mono);font-size:12px;color:${c};min-width:40px;text-align:right">${(v*100).toFixed(0)}%</span>
     </div>`;}).join("");
+})();
+
+// DGA precision-recall curve
+(function(){
+  $("#ap").textContent=M.avgPrecision.toFixed(3);
+  const c=$("#prcurve"), x=fit(c,220), w=c._w, h=c._h, pad=38;
+  const X=r=>pad+(r-0.5)/0.5*(w-pad-14), Y=p=>h-pad-(p-0.5)/0.5*(h-pad-16);
+  x.clearRect(0,0,w,h);
+  x.strokeStyle="#152033";x.lineWidth=1;
+  for(let g=0.5;g<=1.001;g+=0.1){x.beginPath();x.moveTo(X(g),Y(0.5));x.lineTo(X(g),Y(1));x.stroke();
+    x.beginPath();x.moveTo(X(0.5),Y(g));x.lineTo(X(1),Y(g));x.stroke();
+    x.fillStyle=FAINT;x.font='9px "IBM Plex Mono"';x.fillText(g.toFixed(1),X(g)-7,h-pad+14);x.fillText(g.toFixed(1),pad-26,Y(g)+3);}
+  x.strokeStyle=CYAN;x.lineWidth=2.4;x.beginPath();
+  M.prCurve.forEach((p,i)=>{const px=X(p[0]),py=Y(p[1]);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();
+  // fill under curve
+  x.lineTo(X(M.prCurve[M.prCurve.length-1][0]),Y(0.5));x.lineTo(X(M.prCurve[0][0]),Y(0.5));x.closePath();
+  x.fillStyle="#33e6c918";x.fill();
+  x.fillStyle=FAINT;x.font='10px "IBM Plex Mono"';x.fillText("recall →",w-58,h-10);
+  x.save();x.translate(12,h/2);x.rotate(-Math.PI/2);x.fillText("precision",0,0);x.restore();
+})();
+
+// degradation matrix rows
+(function(){
+  const yes=`<span class="mono" style="color:${OK}">✓ works</span>`;
+  const blind=`<span class="mono" style="color:${CRIT}">✗ blind</span>`;
+  const degd=`<span class="mono" style="color:${GHOST}">↓ prior (degraded)</span>`;
+  const rows=[
+    ["cleartext DNS / TCP", yes, yes, `<span class="mono" style="color:${CYAN}">ack-derivative</span>`],
+    ["DoH (DNS-over-HTTPS)", blind, `<span class="mono" style="color:${OK}">✓ ${(M.degr.DoH.beacon*100).toFixed(0)}%</span>`, `<span class="mono" style="color:${CYAN}">ack-derivative</span>`],
+    ["QUIC / HTTP-3", blind, `<span class="mono" style="color:${OK}">✓ ${(M.degr.QUIC.beacon*100).toFixed(0)}%</span>`, degd],
+  ];
+  $("#degrrows").innerHTML=rows.map(r=>`<tr><td class="mono" style="color:${INK}">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join("");
 })();
 </script>

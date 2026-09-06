@@ -73,11 +73,12 @@ Status snapshot. Update the checkboxes and "Last updated" whenever state changes
 ## In progress / next 🔜
 - [x] ~~Real PCAP ingestion adapter~~ — **done** (`halfsight/pcap.py` + `ingest` CLI).
 - [x] ~~Ingest genuinely external public captures~~ — **done** (8/8 real captures incl. real Cobalt Strike C2).
-- [ ] (optional) Streaming ingest (chunked windows) for very large captures.
+- [x] ~~Streaming ingest (chunked windows)~~ — **done** (`ingest.run_streaming` / `--stream`, bounded memory + global beacon pass).
+- [x] ~~Harden GHOSTFLOW for seq/TSval wrap, PAWS, delayed-ACK/Nagle~~ — **done** (serial arithmetic + TSval unwrap + PAWS filter).
+- [x] ~~Expand eval: PR curves + DoH/QUIC degradation~~ — **done** (DGA PR curve + avg-precision; measured degradation matrix).
+- [x] ~~Unit tests (`pytest`) + CI~~ — **done** (30 tests in `reference-impl/tests/`, GitHub Actions + `eval/ci_gate.py` regression gate).
 - [ ] (optional) Slide deck / 3-min pitch script for the on-stage demo.
-- [ ] (optional) Harden GHOSTFLOW for seq/TSval wrap, PAWS, delayed-ACK/Nagle bias (Phase 1 of roadmap).
-- [ ] (optional) Expand eval: more trials, per-family PR curves, a DoH/QUIC degradation scenario.
-- [ ] (optional) Unit tests (`pytest`) around detectors + ledger for CI.
+- [ ] (optional) Thin FastAPI backend wrapping the engine (for a live SOC UI).
 
 ## Known limitations (honest)
 - Traffic is synthetic/lab-generated; not a NIST-grade benchmark.
