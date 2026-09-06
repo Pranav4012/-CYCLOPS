@@ -1,0 +1,427 @@
+<title>CYCLOPS Dossier</title>
+<meta name="description" content="The one-way thesis: a unidirectional-first passive NDR for data-diode enclaves — eight novel cores, architecture, and honest scope.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#070a10; --bg-2:#0a0e17; --panel:#0e1420; --panel-2:#111826;
+  --line:#1c2636; --line-2:#28344a;
+  --ink:#e7edf6; --ink-dim:#9fb0c6; --ink-faint:#63748c;
+  --cyan:#33e6c9; --cyan-2:#12b7a0; --ghost:#9a8cff;
+  --ok:#3ddc84; --warn:#f6b23d; --crit:#ff5470; --info:#4aa3ff;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --display:"Archivo","IBM Plex Sans",system-ui,sans-serif;
+  --maxw:1120px;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark;scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(1100px 620px at 82% -8%,#10202f 0%,transparent 58%),radial-gradient(820px 480px at -5% 4%,#0c1a22 0%,transparent 52%);
+  background-attachment:fixed}
+a{color:var(--cyan);text-decoration:none}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);text-transform:uppercase;letter-spacing:.2em;font-size:11px;color:var(--cyan-2)}
+.kicker{font-family:var(--mono);text-transform:uppercase;letter-spacing:.16em;font-size:11px;color:var(--ink-faint)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h2{font-size:clamp(22px,3.4vw,32px);font-weight:800;letter-spacing:-.01em;line-height:1.08}
+h3{font-size:18px;font-weight:700}
+p{margin:0 0 14px}
+.lead{font-size:17px;color:var(--ink-dim)}
+strong{color:var(--ink)}
+hr{border:none;border-top:1px solid var(--line);margin:0}
+
+/* nav */
+header.nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
+  background:linear-gradient(180deg,#070a10f2,#070a10c4);border-bottom:1px solid var(--line)}
+.nav .in{max-width:var(--maxw);margin:0 auto;padding:11px 22px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .wm{font-family:var(--display);font-weight:900;letter-spacing:.16em;font-size:17px}
+.brand .wm b{color:var(--cyan)}
+.nav .sp{flex:1}
+.nav a.lnk{font-family:var(--mono);font-size:12px;color:var(--ink-dim)}
+.nav a.lnk:hover{color:var(--cyan)}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:600;
+  padding:8px 14px;border-radius:8px;border:1px solid var(--cyan-2);background:#0c2b28;color:var(--cyan);cursor:pointer}
+.btn:hover{background:#0f3a35}
+.btn.ghost{background:transparent;border-color:var(--line-2);color:var(--ink-dim)}
+.btn.ghost:hover{border-color:var(--cyan-2);color:var(--cyan)}
+@media(max-width:720px){.nav a.lnk{display:none}}
+
+/* hero */
+.hero{padding:64px 0 30px;position:relative}
+.hero .eyebrow{margin-bottom:20px}
+.hero h1{font-size:clamp(42px,8vw,88px);font-weight:900;letter-spacing:.02em;line-height:.94}
+.hero h1 b{color:var(--cyan)}
+.hero .tag{font-family:var(--mono);color:var(--ink-dim);font-size:clamp(13px,2vw,16px);margin-top:14px;letter-spacing:.02em}
+.hero .one{max-width:70ch;margin-top:22px;font-size:18px;color:var(--ink-dim)}
+.hero .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+.diodefig{margin:34px 0 8px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#0d1421,#0a0e17);
+  padding:10px;box-shadow:0 30px 60px -40px #000}
+.diodefig svg{display:block;width:100%;height:auto}
+
+/* sections */
+section{padding:46px 0;border-top:1px solid var(--line)}
+.sechead{display:flex;align-items:baseline;gap:14px;margin-bottom:8px;flex-wrap:wrap}
+.sechead .n{font-family:var(--mono);font-size:12px;color:var(--cyan-2);letter-spacing:.1em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+@media(max-width:760px){.grid2{grid-template-columns:1fr;gap:18px}}
+
+/* the bet — compare */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+@media(max-width:640px){.compare{grid-template-columns:1fr}}
+.cc{border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--panel)}
+.cc.bad{border-color:#3a2130}
+.cc.good{border-color:#153a34;background:linear-gradient(180deg,#0c1a1a,#0a0e17)}
+.cc .t{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.cc.bad .t{color:#ff8ea1} .cc.good .t{color:var(--cyan)}
+.cc ul{margin:0;padding-left:18px;color:var(--ink-dim);font-size:14px}
+.cc li{margin:6px 0}
+
+/* cores */
+.cores{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:22px}
+@media(max-width:820px){.cores{grid-template-columns:1fr}}
+.core{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel),var(--bg-2));
+  padding:16px 17px;position:relative;overflow:hidden}
+.core::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan)}
+.core.g::before{background:var(--ghost)} .core.w::before{background:var(--warn)} .core.i::before{background:var(--info)}
+.core .id{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.core .id .nm{font-family:var(--display);font-weight:800;font-size:16px;letter-spacing:.04em}
+.core .id .sub{font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em}
+.core p{font-size:13.5px;color:var(--ink-dim);margin:0 0 9px}
+.core .why{font-family:var(--mono);font-size:11.5px;color:var(--cyan-2);border-top:1px dashed var(--line-2);padding-top:8px}
+.core .why b{color:var(--ink-dim);font-weight:400}
+
+/* tables */
+.tablewrap{overflow-x:auto;margin-top:20px;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint);background:#0c1420}
+tr:last-child td{border-bottom:none}
+td .det{font-family:var(--mono);font-size:11px;color:var(--cyan);display:block;margin-bottom:3px}
+td.mono,.tnum{font-family:var(--mono)}
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:100px;border:1px solid var(--line-2);color:var(--ink-dim)}
+
+/* architecture stack */
+.stack{display:flex;flex-direction:column;gap:8px;margin-top:22px}
+.layer{display:grid;grid-template-columns:150px 1fr;gap:14px;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);padding:13px 15px;align-items:center}
+@media(max-width:640px){.layer{grid-template-columns:1fr}}
+.layer .ln{font-family:var(--display);font-weight:800;font-size:14px;letter-spacing:.03em;color:var(--cyan)}
+.layer .lc{font-size:13px;color:var(--ink-dim)}
+.layer .lt{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:4px}
+
+/* honesty callout */
+.callout{border:1px solid #24405c;background:linear-gradient(180deg,#0b1622,#0a0e17);border-radius:14px;padding:20px 22px;margin-top:12px}
+.callout .h{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--info);margin-bottom:10px}
+.deg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+@media(max-width:640px){.deg{grid-template-columns:1fr}}
+.deg .d{border:1px solid var(--line);border-radius:10px;padding:12px;background:#0c1421}
+.deg .d b{font-family:var(--mono);font-size:11.5px;color:var(--warn);display:block;margin-bottom:5px}
+.deg .d span{font-size:12.5px;color:var(--ink-dim)}
+
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+@media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:15px}
+.kpi b{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--cyan);display:block;letter-spacing:-.01em}
+.kpi span{font-size:12px;color:var(--ink-dim);display:block;margin-top:4px}
+
+/* roadmap */
+.road{margin-top:22px;border-left:2px solid var(--line-2);padding-left:22px;display:flex;flex-direction:column;gap:16px}
+.rp{position:relative}
+.rp::before{content:"";position:absolute;left:-28px;top:5px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid var(--cyan)}
+.rp.demo::before{background:var(--cyan)}
+.rp .ph{font-family:var(--mono);font-size:11px;color:var(--cyan-2);letter-spacing:.06em}
+.rp .tt{font-family:var(--display);font-weight:700;font-size:15px;margin:2px 0 3px}
+.rp .ds{font-size:13.5px;color:var(--ink-dim)}
+
+/* footer */
+footer{padding:44px 0 60px;border-top:1px solid var(--line)}
+.foot{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.foot .cta{display:flex;gap:12px;flex-wrap:wrap}
+.legal{margin-top:22px;color:var(--ink-faint);font-size:12px;line-height:1.6;font-family:var(--mono)}
+</style>
+
+<header class="nav">
+  <div class="in">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 34 34" aria-hidden="true">
+        <path d="M2 17 Q17 3 32 17 Q17 31 2 17 Z" fill="none" stroke="#28344a" stroke-width="1.5"/>
+        <circle cx="17" cy="17" r="7.5" fill="#12b7a0"/><circle cx="17" cy="17" r="3.2" fill="#070a10"/>
+        <circle cx="19" cy="15" r="1" fill="#c9fff4"/></svg>
+      <span class="wm"><b>C</b>YCLOPS</span>
+    </div>
+    <span class="sp"></span>
+    <a class="lnk" href="#bet">the bet</a>
+    <a class="lnk" href="#cores">cores</a>
+    <a class="lnk" href="#arch">architecture</a>
+    <a class="lnk" href="#scope">scope</a>
+    <a class="lnk" href="https://claude.ai/code/artifact/81beb59b-05f1-451f-9aff-626cd23ba36f" target="_blank" rel="noopener">evaluation ↗</a>
+    <a class="btn" href="https://claude.ai/code/artifact/9d977882-6f5b-4be5-9f34-ddaaaf6b8540" target="_blank" rel="noopener">▶ Live console</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="eyebrow">SIH 2026 · PS 26145 · NTRO · Blockchain &amp; Cybersecurity</div>
+    <h1><b>C</b>YCLOPS</h1>
+    <div class="tag">One eye on the wire. No blind spot it won't admit to.</div>
+    <p class="one">A <strong>unidirectional-first</strong> passive NDR for data-diode enclaves that treats the unseen return half of every conversation as an <strong>inference target — not missing data</strong>. It reconstructs the phantom bi-flow from the header bits it can see, detects threats in the timing and information domains that survive one-way visibility and encryption, and seals every probabilistic alert into diode-rooted, reproducible, court-admissible evidence.</p>
+    <div class="cta">
+      <a class="btn" href="https://claude.ai/code/artifact/9d977882-6f5b-4be5-9f34-ddaaaf6b8540" target="_blank" rel="noopener">▶ Open the live console</a>
+      <a class="btn ghost" href="#cores">The eight cores ↓</a>
+    </div>
+
+    <!-- diode figure -->
+    <figure class="diodefig" aria-label="A hardware data diode copies traffic one way into the monitoring enclave; the return path never exists, so CYCLOPS reconstructs it.">
+      <svg viewBox="0 0 1000 260" role="img">
+        <defs>
+          <linearGradient id="pg" x1="0" x2="1"><stop offset="0" stop-color="#1a2536"/><stop offset="1" stop-color="#111a28"/></linearGradient>
+          <linearGradient id="eg" x1="0" x2="1"><stop offset="0" stop-color="#0c2b28"/><stop offset="1" stop-color="#0e1826"/></linearGradient>
+          <marker id="ar" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#33e6c9"/></marker>
+        </defs>
+        <!-- production -->
+        <rect x="24" y="70" width="230" height="120" rx="12" fill="url(#pg)" stroke="#28344a"/>
+        <text x="139" y="120" text-anchor="middle" fill="#9fb0c6" font-family="Archivo,sans-serif" font-weight="800" font-size="17">PRODUCTION</text>
+        <text x="139" y="142" text-anchor="middle" fill="#63748c" font-family="IBM Plex Mono,monospace" font-size="11">gateway · peering link</text>
+        <!-- diode -->
+        <g transform="translate(430,130)">
+          <polygon points="-26,-26 26,0 -26,26" fill="#0e1826" stroke="#33e6c9" stroke-width="2"/>
+          <line x1="26" y1="-26" x2="26" y2="26" stroke="#33e6c9" stroke-width="3"/>
+          <text x="0" y="58" text-anchor="middle" fill="#33e6c9" font-family="IBM Plex Mono,monospace" font-size="11">DATA DIODE</text>
+          <text x="0" y="74" text-anchor="middle" fill="#63748c" font-family="IBM Plex Mono,monospace" font-size="10">one-way only</text>
+        </g>
+        <!-- forward arrow -->
+        <line x1="254" y1="118" x2="398" y2="128" stroke="#33e6c9" stroke-width="2.5" marker-end="url(#ar)"/>
+        <text x="322" y="108" text-anchor="middle" fill="#33e6c9" font-family="IBM Plex Mono,monospace" font-size="10">copy →</text>
+        <line x1="462" y1="128" x2="742" y2="118" stroke="#33e6c9" stroke-width="2.5" marker-end="url(#ar)"/>
+        <!-- blocked return -->
+        <line x1="742" y1="150" x2="470" y2="160" stroke="#ff5470" stroke-width="2" stroke-dasharray="5 6" opacity="0.7"/>
+        <text x="600" y="182" text-anchor="middle" fill="#ff5470" font-family="IBM Plex Mono,monospace" font-size="10">✕ no probe · no handshake · no mitigation back</text>
+        <!-- enclave -->
+        <rect x="746" y="60" width="230" height="90" rx="12" fill="url(#eg)" stroke="#16473f"/>
+        <circle cx="781" cy="105" r="15" fill="none" stroke="#33e6c9" stroke-width="1.5"/><circle cx="781" cy="105" r="6" fill="#12b7a0"/>
+        <text x="835" y="100" fill="#e7edf6" font-family="Archivo,sans-serif" font-weight="800" font-size="15">ENCLAVE</text>
+        <text x="835" y="120" fill="#63748c" font-family="IBM Plex Mono,monospace" font-size="10">CYCLOPS</text>
+        <!-- ghost reconstruction -->
+        <rect x="746" y="170" width="230" height="66" rx="12" fill="#120f26" stroke="#322a66"/>
+        <text x="861" y="196" text-anchor="middle" fill="#9a8cff" font-family="IBM Plex Mono,monospace" font-size="11">GHOST-HALF (inferred)</text>
+        <path d="M760 220 Q800 206 840 220 T960 220" fill="none" stroke="#9a8cff" stroke-width="2" stroke-dasharray="5 4"/>
+      </svg>
+    </figure>
+  </div>
+
+  <!-- THE CONSTRAINT -->
+  <section id="problem">
+    <div class="sechead"><span class="n">01</span><h2>The constraint everyone else routes around</h2></div>
+    <div class="grid2">
+      <div>
+        <p class="lead">Critical-infrastructure operators watch their gateways through a hardware data diode: traffic is copied <strong>one way</strong> into a monitoring enclave that has no physical path back. It removes a whole class of pivot attack and preserves a clean chain of custody — but the intelligence layer inside can only ever <strong>observe</strong>. No probes. No completed handshakes. No mitigation pushed back across the wire.</p>
+      </div>
+      <div>
+        <p>Off-the-shelf detectors were all architected <strong>bidirectional-first</strong>. They secretly assume a round trip — the SYN-ACK, the request/response ratio, the RTT. On a diode you often see only <em>one direction</em> of the link, and that assumption quietly breaks: connection state never completes, biflow ratios read empty, RTT is unrecoverable. Halving a two-sided model doesn't half-work. It fails.</p>
+        <p class="mono" style="color:var(--cyan-2);font-size:13px">The missing return half is not missing at random. Its very absence is the signal.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE BET -->
+  <section id="bet">
+    <div class="sechead"><span class="n">02</span><h2>The bet: infer the half everyone else throws away</h2></div>
+    <p class="lead" style="max-width:76ch">TCP leaks the far side into the headers you <em>do</em> see. The cumulative-ACK field is a running receipt for bytes the peer sent back. The TCP-timestamp echo is a keyhole into the peer's clock. Retransmit backoff tells you whether anyone is even answering. From one direction, CYCLOPS reconstructs a <strong>phantom bi-flow</strong> with a calibrated uncertainty band — then detects where one-way visibility cannot hurt it.</p>
+    <div class="compare">
+      <div class="cc bad">
+        <div class="t">✕ Bidirectional-first NDR on one direction</div>
+        <ul>
+          <li>Zero-fills the unseen half → covariate-shift failure</li>
+          <li>Connection state machine never completes</li>
+          <li>Flood/scan/exhaustion analytics go silent</li>
+          <li>Confidence is opaque and non-reproducible</li>
+          <li>Degrades gracefully — at best</li>
+        </ul>
+      </div>
+      <div class="cc good">
+        <div class="t">◉ CYCLOPS · unidirectional-first</div>
+        <ul>
+          <li>Reconstructs reverse volume, RTT &amp; liveness as features</li>
+          <li>Routes by <em>which half</em> the tap shows (VANTAGE)</li>
+          <li>Detects in the timing &amp; information domains (survive TLS)</li>
+          <li>Confidence <em>widens honestly</em> when it leaned on inference</li>
+          <li>Gets <strong>stronger</strong> by inferring the missing half</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORES -->
+  <section id="cores">
+    <div class="sechead"><span class="n">03</span><h2>Eight cores that only make sense one-way</h2></div>
+    <p class="lead">The moat is an inference-and-honesty layer no bidirectional NDR has, because none assumed the return half is gone forever.</p>
+    <div class="cores">
+      <div class="core">
+        <div class="id"><span class="nm">GHOSTFLOW</span><span class="sub">half-flow reconstruction</span></div>
+        <p>Cumulative-ACK deltas recover the exact byte volume the peer sent back; a shadow TCP state machine tracks the unseen peer's ISN and connection state. Output: a per-flow reconstructed return series with a variance band — a phantom bi-flow, not a dropped column.</p>
+        <div class="why"><b>Why it lands:</b> reverse-byte estimates land within a few % of withheld ground truth when ACKs are visible — the constraint becomes a measured signal.</div>
+      </div>
+      <div class="core">
+        <div class="id"><span class="nm">PULSE</span><span class="sub">liveness oracle</span></div>
+        <p>RTT and "is the peer actually answering?" with no round trip: the TCP TSecr echo carries the unseen party's clock; SYN-retransmit RTO backoff fingerprints a silent peer; a visible third-ACK <em>proves</em> the server responded even when its packets never crossed the tap.</p>
+        <div class="why"><b>Why it lands:</b> structurally defuses the #1 one-way false positive — benign asymmetric routing masquerading as half-open floods.</div>
+      </div>
+      <div class="core i">
+        <div class="id"><span class="nm">VANTAGE</span><span class="sub">which-half routing</span></div>
+        <p>Which half you see (client→server vs server→client; victim ingress vs egress) is a latent variable that flips the whole strategy. A classifier infers it from SYN/ACK directionality, port roles and ACK-progression, then routes each threat to a detector bank built for that vantage.</p>
+        <div class="why"><b>Why it lands:</b> an explicit architectural stance no commercial NDR takes — the same enclave works on either direction of the tap.</div>
+      </div>
+      <div class="core">
+        <div class="id"><span class="nm">SPECTER</span><span class="sub">spectral beaconing</span></div>
+        <p>C2 beacons as a point process of egress flow-initiations, scored with a Lomb-Scargle periodogram (built for gappy, unevenly-sampled series) plus phase-fold confirmation. The periodogram's analytic false-alarm probability <em>is</em> the confidence score.</p>
+        <div class="why"><b>Why it lands:</b> recovers periodicity from timestamps alone — no SYN-ACK, RTT or completeness needed — and survives Cobalt-Strike jitter.</div>
+      </div>
+      <div class="core i">
+        <div class="id"><span class="nm">BABEL</span><span class="sub">DNS language + covert-capacity</span></div>
+        <p>A char-level model + benign perplexity for arithmetic/hex DGAs, a cross-host WordGraph for dictionary DGAs, and the Paxson information bound <em>metering covert-channel throughput</em> for tunnels — asserting a live tunnel exists from poll cadence alone.</p>
+        <div class="why"><b>Why it lands:</b> emits a real number — "~N kbps of exfil on domain X" — not a binary hunch. Evasion by encoding still surrenders bits the capacity bound catches.</div>
+      </div>
+      <div class="core w">
+        <div class="id"><span class="nm">BACKLOG ORACLE</span><span class="sub">DoS mechanism, not a rate</span></div>
+        <p>A Little's-Law estimator turns one-sided SYN completion deficits into a live "SYN-RECV backlog % full / ETA-to-exhaustion" gauge, and detects the victim's own SYN-cookie regime-flip as passive confirmation the queue already overflowed.</p>
+        <div class="why"><b>Why it lands:</b> maps onto the actual DoS mechanism (queue exhaustion), turning the defender's kernel behaviour into an indicator no baseline uses.</div>
+      </div>
+      <div class="core g">
+        <div class="id"><span class="nm">CALIBER</span><span class="sub">honest confidence</span></div>
+        <p>Conformal prediction gives every alert a distribution-free coverage guarantee, and HalfSight's reconstruction variance is propagated in — the band <em>widens</em> when a detection leans on an imputed half. Alerts separate Observed / Inferred / Assumed with per-feature TreeSHAP attribution.</p>
+        <div class="why"><b>Why it lands:</b> for an enclave that can never probe to confirm, calibrated auditable confidence <em>is</em> the deliverable.</div>
+      </div>
+      <div class="core g">
+        <div class="id"><span class="nm">WIRESEAL</span><span class="sub">custody + federation</span></div>
+        <p>The diode becomes the first cryptographic link of the chain of custody: WORM enforced by physics. Every alert seals into a Merkle-rooted, HSM-signed bundle anchoring the <em>inference chain</em> — model hash, features, thresholds, reconstruction — with roots checkpointed to a permissioned ledger.</p>
+        <div class="why"><b>Why it lands:</b> a probabilistic one-way alert becomes bit-for-bit re-derivable and court-admissible; two enclaves attest a bi-flow event without shipping raw PCAP.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COVERAGE -->
+  <section id="coverage">
+    <div class="sechead"><span class="n">04</span><h2>Threat coverage, one direction at a time</h2></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Threat</th><th>One-way signal CYCLOPS uses</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="det">FLOODLIGHT</span>SYN / UDP flood</td>
+            <td>Follow-through absence + source-IP entropy + PULSE liveness (spoofed sources have no coherent TCP-timestamp clock) + Little's-Law backlog + SYN-cookie flip.</td>
+            <td class="mono">backlog % · ETA-to-exhaustion · spoofed-vs-flash-crowd</td>
+          </tr>
+          <tr>
+            <td><span class="det">HOURGLASS</span>Slowloris / slow-HTTP</td>
+            <td>Survival/hazard model on request-header completeness read from the client half; concurrency vs marked worker-pool capacity; long-duration / near-zero-byte clustering.</td>
+            <td class="mono">pool % · fires before server dies · long-poll excluded</td>
+          </tr>
+          <tr>
+            <td><span class="det">BABEL</span>DNS tunnelling</td>
+            <td>Subdomain entropy, label length &amp; uniqueness, qtype flip to TXT/NULL, covert-channel throughput bound; return-channel existence inferred from poll cadence.</td>
+            <td class="mono">~kbps exfil metered · "return channel: ACTIVE"</td>
+          </tr>
+          <tr>
+            <td><span class="det">BABEL + SPECTER</span>DGA + C2 beaconing</td>
+            <td>Char/word language models over qnames fused with Lomb-Scargle periodicity of egress initiations, gated by PULSE liveness (answered live C2 vs dead resolution).</td>
+            <td class="mono">period · jitter% · calibrated FAP · answered=yes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="arch">
+    <div class="sechead"><span class="n">05</span><h2>The pipeline</h2></div>
+    <p class="lead">Every stage runs on one direction only, deterministic and replayable for forensic use.</p>
+    <div class="stack">
+      <div class="layer"><div class="ln">CAPTURE</div><div><div class="lc">Zero-copy line-rate capture with nanosecond timestamps, provable drop-accounting, and a feed-fidelity router (PCAP/unsampled IPFIX → spectral path; sampled sFlow → volumetric only).</div><div class="lt">AF_XDP · XDP/eBPF · DPDK · PF_RING · PTP/GPS clock · YAF · Zeek · Joy</div></div></div>
+      <div class="layer"><div class="ln">STREAM</div><div><div class="lc">Durable replayable event log + event-time windowed processing with exactly-once checkpointing; bounded-memory sketches for line-rate cardinality, heavy-hitters &amp; quantiles.</div><div class="lt">Kafka / Redpanda · Flink (RocksDB) · HyperLogLog · Count-Min · t-digest</div></div></div>
+      <div class="layer"><div class="ln">HALFSIGHT</div><div><div class="lc">The shared inference core: a shadow TCP FSM, ACK-derivative reverse-flow estimator, TSecr + RTO liveness oracle, and a Bayesian shadow-half posterior with per-feature variance.</div><div class="lt">GHOSTFLOW · PULSE · VANTAGE · Kalman/particle filter · Beta-Binomial priors</div></div></div>
+      <div class="layer"><div class="ln">DETECTORS</div><div><div class="lc">Four banks redesigned around one-way evidence, each purpose-built for a single vantage rather than a bidirectional detector with features dropped.</div><div class="lt">FLOODLIGHT · HOURGLASS · BABEL · SPECTER</div></div></div>
+      <div class="layer"><div class="ln">CALIBER</div><div><div class="lc">Conformal / Venn-Abers calibration with reconstruction-uncertainty propagation, TreeSHAP evidence, corroboration-gated triage, and ADWIN drift-vs-attack discrimination.</div><div class="lt">Mondrian conformal · TreeSHAP · ADWIN · suspicion budget</div></div></div>
+      <div class="layer"><div class="ln">WIRESEAL</div><div><div class="lc">Diode-rooted Merkle chain-of-custody: HSM-signed bundles anchoring the inference chain, permissioned-ledger root commits, and opposite-half federation via signed digest sketches.</div><div class="lt">Merkle · HSM/ed25519 · Fabric/QLDB/Trillian · IBLT/Minisketch</div></div></div>
+    </div>
+  </section>
+
+  <!-- DIFFERENTIATION -->
+  <section id="diff">
+    <div class="sechead"><span class="n">06</span><h2>Why not just run Zeek?</h2></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>System</th><th>On a one-way tap</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Zeek / Corelight</td><td>conn.log is biflow-centric — the <span class="mono">resp_*</span> half is empty, so flood/scan/exhaustion analytics that lean on bidirectional ratios go silent or degrade.</td></tr>
+          <tr><td class="mono">Suricata</td><td>a stateful signature/stream engine that often can't complete flow state or fire dual-direction rules on a diode; its model is match-what-you-see, not infer-what-you-can't.</td></tr>
+          <tr><td class="mono">RITA</td><td>does genuine beaconing, but consumes Zeek's bidirectional logs with interval/FFT methods that assume near-uniform sampling.</td></tr>
+          <tr><td class="mono">Darktrace / NDR</td><td>bidirectional behavioural baselines, typically expect both directions (sometimes active enrichment), with opaque, non-reproducible confidence.</td></tr>
+          <tr><td class="mono" style="color:var(--cyan)">CYCLOPS</td><td><strong>Unidirectional-first.</strong> Reconstructs the missing half as a shared feature layer, conditions on vantage, propagates reconstruction uncertainty into a coverage-guaranteed confidence, and makes each alert reproducible and admissible — the honesty layer none of them have.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- HONEST SCOPE -->
+  <section id="scope">
+    <div class="sechead"><span class="n">07</span><h2>Honest about scope</h2></div>
+    <div class="callout">
+      <div class="h">what we do not claim to have invented</div>
+      <p style="margin:0;color:var(--ink-dim)">DGA lexical scoring, beacon periodicity, entropy-based tunnelling and volumetric flood detection are table-stakes. Our contribution is the <strong>unidirectional-first inference-and-honesty layer</strong> around them — and we route around our own limits with explicit graceful degradation rather than overselling.</p>
+      <div class="deg">
+        <div class="d"><b>QUIC / HTTP-3</b><span>erodes the ACK/timestamp tricks → fall back to timing-and-volume features.</span></div>
+        <div class="d"><b>DoH / DoT</b><span>blinds lexical DNS features → beaconing-and-volume heuristics + JA4+ fingerprints.</span></div>
+        <div class="d"><b>Sampled sFlow</b><span>disables per-packet reconstruction → volumetric/entropy detectors only, never faked spectra.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPIs -->
+  <section id="kpis">
+    <div class="sechead"><span class="n">08</span><h2>Measured, not asserted</h2></div>
+    <div class="kpis">
+      <div class="kpi"><b>±4.3%</b><span>reverse-byte reconstruction error (median) vs withheld ground truth</span></div>
+      <div class="kpi"><b>8 / 8</b><span>real public attack captures detected · macro F1 <b style="color:var(--ink)">0.967</b> on synthetic · <b style="color:var(--ok)">0%</b> benign FP</span></div>
+      <div class="kpi"><b>0.90 → 0.90</b><span>conformal coverage: empirical tracks nominal 1−α exactly</span></div>
+      <div class="kpi"><b>100%</b><span>tamper localisation &amp; spoofed-flood vs flash-crowd separation</span></div>
+    </div>
+    <p class="mono" style="font-size:12px;color:var(--ink-faint);margin-top:16px">All figures <strong style="color:var(--ink-dim)">measured</strong> by <span style="color:var(--ink-dim)">eval/run_eval.py</span> on seeded, labeled, one-directional traffic (overt + low-signal stealth). Overt recall 100% / stealth 85% · SPECTER 0% Poisson false-positive after the look-elsewhere correction. The pipeline is <strong style="color:var(--ink-dim)">validated on 8/8 real public attack captures</strong> — real DDoS (StopDDoS), iodine &amp; dnscat2 DNS tunnels, a real Slowloris capture, and a <strong style="color:var(--ink-dim)">real Cobalt Strike C2 beacon</strong> whose 120s sleep-interval SPECTER recovered at R=0.9997 (<span style="color:var(--ink-dim)">python3 -m eval.validate_real</span>). BABEL's DGA core is an <strong style="color:var(--ink-dim)">ML model trained on 25 real DGA families</strong> (337k domains vs real Alexa/OpenDNS legit) — <strong style="color:var(--ink-dim)">ROC-AUC 0.97</strong>, arithmetic families 95–99%. <a href="https://claude.ai/code/artifact/81beb59b-05f1-451f-9aff-626cd23ba36f" target="_blank" rel="noopener">See the full evaluation report →</a></p>
+  </section>
+
+  <!-- ROADMAP -->
+  <section id="road">
+    <div class="sechead"><span class="n">09</span><h2>From hackathon demo to NTRO deployment</h2></div>
+    <div class="road">
+      <div class="rp demo"><div class="ph">PHASE 0 · hackathon demo</div><div class="tt">The working console + reference engine</div><div class="ds">PCAP-replay pipeline (capture → Redpanda → Flink → River) with all four banks, HalfSight reconstruction, the Ghost-Half console, and a single-enclave HSM-signed hash chain — the on-stage one-way toggle, backlog oracle, covert-capacity meter, SPECTER triptych and tamper demo.</div></div>
+      <div class="rp"><div class="ph">PHASE 1–2 · harden + calibrate</div><div class="tt">GHOSTFLOW robustness &amp; CALIBER</div><div class="ds">Seq/TSval wrap, PAWS, delayed-ACK bias, middlebox rewriting; per-link asymmetric-routing baselines; the vantage classifier + graceful-degradation matrix; conformal calibration with drift-vs-attack discrimination and online learning on analyst-confirmed labels.</div></div>
+      <div class="rp"><div class="ph">PHASE 3 · line rate</div><div class="tt">40 / 100G systems work</div><div class="ds">FPGA/SmartNIC leaf-hashing and capture, DPDK/AF_XDP tuning, sketch-based pre-filtering so full periodograms run only on shortlisted channels; sustained throughput with near-zero drop.</div></div>
+      <div class="rp"><div class="ph">PHASE 4–5 · custody + federation</div><div class="tt">WIRESEAL at scale</div><div class="ds">Permissioned-ledger anchoring (Fabric/QLDB/Trillian), model+training provenance, threshold signing, auto-generated exhibit certificates; opposite-half federation across enclaves via IBLT/PSI reconciliation — cross-site correlation for NTRO without moving raw PCAP.</div></div>
+      <div class="rp"><div class="ph">PHASE 6–7 · encrypted transport + handoff</div><div class="tt">Resilience &amp; signed warrants</div><div class="ds">QUIC/HTTP-3 fallbacks, DoH/DoT heuristics, adversary-cost dashboards showing what each evasion forced the attacker to surrender; STIX 2.1 / TAXII signed-warrant handoff to the production-side responders with deterministic forensic replay.</div></div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="brand"><span class="wm"><b>C</b>YCLOPS</span></div>
+        <p class="mono" style="color:var(--ink-faint);font-size:12px;margin-top:8px">unidirectional-first passive NDR · engine: <b style="color:var(--ink-dim)">reference-impl/halfsight/</b></p>
+      </div>
+      <div class="cta">
+        <a class="btn" href="https://claude.ai/code/artifact/9d977882-6f5b-4be5-9f34-ddaaaf6b8540" target="_blank" rel="noopener">▶ Live console</a>
+        <a class="btn ghost" href="#cores">Back to the cores ↑</a>
+      </div>
+    </div>
+    <p class="legal">CYCLOPS is a concept + working reference for SIH 2026 · PS 26145 (NTRO). KPI figures are targets/illustrative on the reference trace. The detection maths (spectral periodogram, entropy, backlog estimation, Merkle inclusion proofs) is genuinely computed in the console and the reference engine, which runs the same detectors on real flows.</p>
+  </div>
+</footer>
