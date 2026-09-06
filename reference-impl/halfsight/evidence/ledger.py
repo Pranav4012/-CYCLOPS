@@ -1,5 +1,5 @@
-"""
-Tamper-evident forensic chain-of-custody  —  the "Blockchain & Cybersecurity"
+﻿"""
+Tamper-evident forensic chain-of-custody — the "Blockchain & Cybersecurity"
 core, made genuinely useful rather than decorative.
 
 The data diode already guarantees the enclave cannot be used to reach back into
@@ -28,7 +28,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 
@@ -56,7 +56,7 @@ class MerkleTree:
             nxt = []
             for i in range(0, len(level), 2):
                 a = level[i]
-                b = level[i + 1] if i + 1 < len(level) else a  # duplicate last if odd
+                b = level[i + 1] if i + 1 < len(level) else a
                 nxt.append(_h(bytes.fromhex(a) + bytes.fromhex(b)))
             self.levels.append(nxt)
             level = nxt
@@ -74,7 +74,7 @@ class MerkleTree:
                 side = "R" if sib > index else "L"
                 proof.append((level[sib], side))
             else:
-                proof.append((level[index], "R"))  # duplicated node
+                proof.append((level[index], "R"))
             index //= 2
         return proof
 
@@ -84,8 +84,10 @@ class MerkleTree:
         for sib, side in proof:
             if side == "R":
                 h = _h(bytes.fromhex(h) + bytes.fromhex(sib))
-            else:
+            elif side == "L":
                 h = _h(bytes.fromhex(sib) + bytes.fromhex(h))
+            else:
+                return False
         return h == root
 
 
@@ -96,13 +98,13 @@ class MerkleTree:
 class EvidenceBundle:
     alert: dict
     flow_record: dict
-    packet_hashes: List[str]          # sha256 of each raw packet the diode copied
+    packet_hashes: List[str]
     feature_vector: dict
     model_id: str
     model_version: str
 
     def digest(self) -> str:
-        pkt_root = MerkleTree(self.packet_hashes or [_h(b'-')]).root
+        pkt_root = MerkleTree(self.packet_hashes or [_h(b"-")]).root
         payload = {
             "alert": self.alert,
             "flow": self.flow_record,
@@ -127,8 +129,11 @@ class Block:
 
     def header_hash(self) -> str:
         hdr = {
-            "index": self.index, "ts": round(self.ts, 6), "prev_hash": self.prev_hash,
-            "merkle_root": self.merkle_root, "sensor_id": self.sensor_id,
+            "index": self.index,
+            "ts": round(self.ts, 6),
+            "prev_hash": self.prev_hash,
+            "merkle_root": self.merkle_root,
+            "sensor_id": self.sensor_id,
         }
         return _h(canonical(hdr))
 
@@ -145,7 +150,14 @@ class EvidenceLedger:
         self._genesis()
 
     def _genesis(self):
-        b = Block(0, 0.0, "0" * 64, MerkleTree([_h(b"genesis")]).root, [], self.sensor_id)
+        b = Block(
+            0,
+            0.0,
+            "0" * 64,
+            MerkleTree([_h(b"genesis")]).root,
+            [],
+            self.sensor_id,
+        )
         b.signature = self._sign(b)
         self.blocks.append(b)
 
@@ -171,6 +183,60 @@ class EvidenceLedger:
         self._pending = []
         return blk
 
+    def get_bundle_proof(self, block_index: int, bundle_index: int) -> List[Tuple[str, str]]:
+        """Extra compatibility helper for inclusion proofs."""
+        if block_index < 0 or block_index >= len(self.blocks):
+            raise IndexError("Invalid block index")
+        if block_index == 0:
+            raise IndexError("Genesis block contains no evidence bundles")
+        block = self.blocks[block_index]
+        if bundle_index < 0 or bundle_index >= len(block.bundle_digests):
+            raise IndexError("Invalid bundle index")
+        return MerkleTree(block.bundle_digests).proof(bundle_index)
+
+    def bundle_proof(self, block_index: int, bundle_index: int) -> dict:
+        """Return a proof record in the project’s expected shape."""
+        block = self.blocks[block_index]
+        proof = self.get_bundle_proof(block_index, bundle_index)
+        return {
+            "block_index": block_index,
+            "bundle_index": bundle_index,
+            "bundle_digest": block.bundle_digests[bundle_index],
+            "merkle_root": block.merkle_root,
+            "proof": proof,
+        }
+
+    def verify_bundle_proof(self, *args, **kwargs) -> bool:
+        """Verify a Merkle proof record or the older (block_index, digest, proof) form."""
+        if len(args) == 1 and not kwargs:
+            record = args[0]
+            if not isinstance(record, dict):
+                return False
+            block_index = record.get("block_index")
+            bundle_digest = record.get("bundle_digest")
+            proof = record.get("proof")
+            merkle_root = record.get("merkle_root")
+            if block_index is None or bundle_digest is None or proof is None:
+                return False
+            if block_index < 0 or block_index >= len(self.blocks):
+                return False
+            block = self.blocks[block_index]
+            return MerkleTree.verify_proof(bundle_digest, proof, merkle_root or block.merkle_root)
+
+        if len(args) == 3 and not kwargs:
+            block_index, bundle_digest, proof = args
+        elif "block_index" in kwargs and "bundle_digest" in kwargs and "proof" in kwargs:
+            block_index = kwargs["block_index"]
+            bundle_digest = kwargs["bundle_digest"]
+            proof = kwargs["proof"]
+        else:
+            return False
+
+        if block_index < 0 or block_index >= len(self.blocks):
+            return False
+        block = self.blocks[block_index]
+        return MerkleTree.verify_proof(bundle_digest, proof, block.merkle_root)
+
     def anchor(self, block_index: int) -> str:
         """Commit a block header to the (stubbed) permissioned ledger."""
         blk = self.blocks[block_index]
@@ -179,13 +245,37 @@ class EvidenceLedger:
         blk.anchor_ref = ref
         return ref
 
+    def verify_block(self, block_index: int) -> bool:
+        """Verify one block including Merkle root, prev-hash, and signature."""
+        if block_index < 0 or block_index >= len(self.blocks):
+            return False
+        block = self.blocks[block_index]
+
+        if block_index == 0:
+            expected_root = MerkleTree([_h(b"genesis")]).root
+        else:
+            expected_root = MerkleTree(block.bundle_digests).root
+
+        if block.merkle_root != expected_root:
+            return False
+
+        if block_index == 0:
+            if block.prev_hash != "0" * 64:
+                return False
+        else:
+            prev = self.blocks[block_index - 1]
+            if block.prev_hash != prev.header_hash():
+                return False
+
+        if not hmac.compare_digest(block.signature, self._sign(block)):
+            return False
+
+        return True
+
     def verify_chain(self) -> Tuple[bool, Optional[int]]:
         """Return (ok, first_broken_index). Detects any post-hoc tampering."""
-        for i in range(1, len(self.blocks)):
-            cur, prev = self.blocks[i], self.blocks[i - 1]
-            if cur.prev_hash != prev.header_hash():
-                return False, i
-            if not hmac.compare_digest(cur.signature, self._sign(cur)):
+        for i in range(len(self.blocks)):
+            if not self.verify_block(i):
                 return False, i
         return True, None
 
