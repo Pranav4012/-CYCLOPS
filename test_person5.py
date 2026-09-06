@@ -1,7 +1,9 @@
 import sys
+from pathlib import Path
 
-# Allow imports from reference-impl
-sys.path.insert(0, "reference-impl")
+# Allow imports from reference-impl regardless of the current working directory.
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "reference-impl"))
 
 from halfsight.caliber import ConformalCalibrator
 from halfsight.evidence.ledger import (
