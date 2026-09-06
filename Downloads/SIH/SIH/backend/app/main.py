@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .service import CyclopsService
+from .team_integrations import integration_status
 
 app = FastAPI(title="CYCLOPS API", version="0.2.0",
               description="Queued passive one-way network detection API")
@@ -22,6 +23,11 @@ service = CyclopsService()
 @app.get("/api/status")
 def get_status():
     return service.status()
+
+
+@app.get("/api/integrations")
+def get_integrations():
+    return {"items": integration_status()}
 
 
 @app.get("/api/alerts")

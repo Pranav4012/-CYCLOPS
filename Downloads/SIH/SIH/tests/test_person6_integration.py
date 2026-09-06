@@ -11,6 +11,9 @@ PCAP = Path(__file__).parents[1] / "reference-impl" / "pcaps" / "mixed.pcap"
 def test_backend_contract_and_incidents():
     client = TestClient(app)
     assert client.get("/api/status").status_code == 200
+    integrations = client.get("/api/integrations")
+    assert integrations.status_code == 200
+    assert all(item["snapshot_present"] for item in integrations.json()["items"].values())
     assert client.get("/api/alerts?limit=2").json()["limit"] == 2
     incidents = client.get("/api/incidents?limit=200").json()
     assert incidents["total"] >= 1
