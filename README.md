@@ -14,9 +14,10 @@ shared alert pipeline.
 
 | Codename | Module | Detection method | Alert class |
 | --- | --- | --- | --- |
-| SPECTER | `halfsight/detectors/spector.py` | Inter-arrival-time regularity using coefficient of variation | `botnet_c2_beaconing` |
-| BABEL | `halfsight/detectors/babel.py` | Shannon entropy, character bigrams, DGA family signatures, optional model score, and query rate | `dga_dns_tunnelling` |
-| FLOODS | `halfsight/detectors/floods.py` | Packet/byte rate and source-IP entropy | `volumetric_ddos` |
+| SPECTER | `reference-impl/halfsight/detectors/beaconing.py` | Rayleigh periodogram, interval regularity, and payload-size regularity | `c2_beaconing` |
+| BABEL | `reference-impl/halfsight/detectors/dga.py` | DGA lexical scoring with entropy, n-grams, and model support | `dga_domain` |
+| BABEL | `reference-impl/halfsight/detectors/dns_tunnel.py` | DNS query volume, entropy, uniqueness, and qtype analysis | `dns_tunnelling` |
+| FLOODS | `reference-impl/halfsight/detectors/floods.py` | SYN/UDP rate, source-IP entropy, reflection, and Slowloris analysis | `syn_flood`, `reflection_amplification` |
 
 Supporting modules:
 
